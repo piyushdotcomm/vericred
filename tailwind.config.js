@@ -8,21 +8,32 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        surface: "#F7F8FA",
-        ink: "#10161F",
-        registry: "#14293E",
-        accent: "#0E5A8A",
-        valid: "#1F7A4D",
-        tampered: "#B3261E",
-        revoked: "#A06000",
+        background: "#000000",
+        surface: "#0A0A0A",
+        surfaceElevated: "#111111",
+        ink: "#FFFFFF",
+        inkMuted: "#888888",
+        border: "#222222",
+        accent: "#FFFFFF",
+        accentHover: "#CCCCCC",
+        valid: "#00FF66",
+        validBg: "#00FF661A",
+        tampered: "#FF3333",
+        tamperedBg: "#FF33331A",
+        revoked: "#FFAA00",
+        revokedBg: "#FFAA001A",
       },
       fontFamily: {
-        sans: ["var(--font-grotesk)", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-plex-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        soft: "14px",
+        soft: "12px",
       },
+      letterSpacing: {
+        tighter: "-0.04em",
+        tight: "-0.02em",
+      }
     },
   },
   plugins: [],

@@ -2,16 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --surface: #f7f8fa;
-  --ink: #10161f;
-  --registry: #14293e;
-  --accent: #0e5a8a;
-  --valid: #1f7a4d;
-  --tampered: #b3261e;
-  --revoked: #a06000;
-}
-
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -19,12 +9,19 @@
   }
 
   body {
-    background-color: var(--surface);
-    color: var(--ink);
+    background-color: theme("colors.background");
+    color: theme("colors.ink");
+    /* Minimal custom scrollbar for cold luxury */
+    scrollbar-color: theme("colors.border") theme("colors.background");
+  }
+
+  ::selection {
+    background-color: theme("colors.ink");
+    color: theme("colors.background");
   }
 
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid theme("colors.accent");
     outline-offset: 2px;
   }
 }
