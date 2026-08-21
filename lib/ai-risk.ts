@@ -1,13 +1,4 @@
-import type { Credential, RiskReport } from "./types";
-
-export interface RegistryStats {
-  issuerCredentialCount: number;
-  issuerAgeHours: number;
-  issuerTemplateCount: number;
-  duplicateHashCount: number;
-  totalIssuances: number;
-  issuerKnown: boolean;
-}
+import type { Credential, RegistryStats, RiskReport } from "./types";
 
 export function scoreRisk(
   credential: Credential,
@@ -48,6 +39,13 @@ export function scoreRisk(
   if (isSyntheticIssuer) {
     score += 15;
     reasons.push("Issuer appears synthetic (new, then a sudden burst).");
+  }
+
+  if (stats.recentIssuanceCount >= 100) {
+    score += 10;
+    reasons.push(
+      `Issuer minted ${stats.recentIssuanceCount} credentials in the last hour.`,
+    );
   }
 
   if (stats.duplicateHashCount > 1) {

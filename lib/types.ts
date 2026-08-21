@@ -1,6 +1,6 @@
 export type DocType = "transcript" | "migration" | "degree";
 
-export type MigrationStatus = "issued" | "presented" | "accepted";
+export type MigrationStatus = "none" | "issued" | "presented" | "accepted";
 
 export interface Credential {
   id: string;
@@ -13,13 +13,21 @@ export interface Credential {
   docType: DocType;
   issuedAt: string;
   claims: Record<string, string | number>;
+  /** Static origin for a migration certificate (two-party document). */
+  issuedBy?: string;
 }
 
-export interface MigrationCredential extends Credential {
-  docType: "migration";
-  issuedBy: string;
-  presentedTo?: string;
-  status: MigrationStatus;
+/**
+ * The immutable credential is hashed and anchored on-chain.
+ * Mutable lifecycle state (migration presentedTo / status) lives on-chain only,
+ * so it is deliberately NOT part of this hashable type.
+ */
+export interface CredentialRecord {
+  credential: Credential;
+  cid: string;
+  issuerSignature: string;
+  docHash: string;
+  tokenId: number;
 }
 
 export type VerificationStatus =
@@ -38,6 +46,7 @@ export interface VerificationResult {
 }
 
 export interface Grant {
+  /** Wildcard address (0x0) means "bearer of the link". */
   verifier: string;
   credentialId: string;
   expiresAt: number;
@@ -47,4 +56,15 @@ export interface Grant {
 export interface RiskReport {
   score: number;
   reasons: string[];
+}
+
+export interface RegistryStats {
+  issuerKnown: boolean;
+  issuerCredentialCount: number;
+  issuerAgeHours: number;
+  issuerTemplateCount: number;
+  duplicateHashCount: number;
+  totalIssuances: number;
+  /** Number of credentials the issuer minted in the most recent hour. */
+  recentIssuanceCount: number;
 }

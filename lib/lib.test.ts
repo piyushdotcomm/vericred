@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { canonicalJson, credentialHash } from "../lib/hash";
 import { verifyCredential } from "../lib/verify";
 import { scoreRisk } from "../lib/ai-risk";
-import type { Credential } from "../lib/types";
+import type { Credential, Grant } from "../lib/types";
 
 const baseCredential: Credential = {
   id: "cred-1",
@@ -15,6 +15,13 @@ const baseCredential: Credential = {
   docType: "degree",
   issuedAt: "2025-06-15T10:00:00Z",
   claims: { cgpa: 8.4, program: "B.Tech" },
+};
+
+const baseGrant: Grant = {
+  verifier: "0xverifier",
+  credentialId: "cred-1",
+  expiresAt: Math.floor(Date.now() / 1000) + 100,
+  signature: "0xsig",
 };
 
 describe("canonicalJson", () => {
@@ -36,6 +43,15 @@ describe("credentialHash", () => {
     const h1 = credentialHash(baseCredential);
     const h2 = credentialHash({ ...baseCredential, studentName: "Aisha Varma" });
     expect(h1).not.toBe(h2);
+  });
+
+  it("is stable across address casing", () => {
+    const h1 = credentialHash(baseCredential);
+    const h2 = credentialHash({
+      ...baseCredential,
+      studentAddress: baseCredential.studentAddress.toUpperCase(),
+    });
+    expect(h1).toBe(h2);
   });
 });
 
@@ -86,12 +102,7 @@ describe("verifyCredential", () => {
         student: baseCredential.studentName,
         registeredHash: hash,
       },
-      {
-        verifier: "0xemp",
-        credentialId: "cred-1",
-        expiresAt: Math.floor(Date.now() / 1000) - 100,
-        signature: "0xsig",
-      },
+      { ...baseGrant, expiresAt: Math.floor(Date.now() / 1000) - 100 },
     );
     expect(result.status).toBe("EXPIRED");
   });
@@ -106,6 +117,7 @@ describe("scoreRisk", () => {
       duplicateHashCount: 0,
       totalIssuances: 10,
       issuerKnown: true,
+      recentIssuanceCount: 0,
     });
     expect(report.score).toBeLessThan(20);
     expect(report.reasons).toHaveLength(0);
@@ -119,6 +131,7 @@ describe("scoreRisk", () => {
       duplicateHashCount: 0,
       totalIssuances: 5000,
       issuerKnown: true,
+      recentIssuanceCount: 5000,
     });
     expect(report.score).toBeGreaterThanOrEqual(90);
     expect(report.reasons.length).toBeGreaterThan(0);
@@ -132,6 +145,7 @@ describe("scoreRisk", () => {
       duplicateHashCount: 0,
       totalIssuances: 1,
       issuerKnown: false,
+      recentIssuanceCount: 0,
     });
     expect(report.reasons.some((r) => r.includes("not on the recognized"))).toBe(
       true,
