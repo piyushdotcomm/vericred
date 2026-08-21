@@ -1,0 +1,71 @@
+[
+  {
+    "id": "cred-demo-1",
+    "issuerDid": "did:web:university-a.edu",
+    "issuerName": "University A",
+    "studentName": "Aisha Verma",
+    "studentAddress": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "rollNumber": "2021CS045",
+    "course": "B.Tech Computer Science",
+    "docType": "degree",
+    "issuedAt": "2025-06-15T10:00:00Z",
+    "claims": {
+      "cgpa": 8.4,
+      "program": "B.Tech"
+    },
+    "docHash": "0xccfb35714e26308812de030ecd88e5a9a94bf30e180969cbaa80ff86c55d1ec5",
+    "tokenId": 0
+  },
+  {
+    "id": "cred-demo-2",
+    "issuerDid": "did:web:university-a.edu",
+    "issuerName": "University A",
+    "studentName": "Aisha Verma",
+    "studentAddress": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "rollNumber": "2021CS045",
+    "course": "B.Tech Computer Science",
+    "docType": "transcript",
+    "issuedAt": "2025-06-15T10:00:00Z",
+    "claims": {
+      "cgpa": 8.4,
+      "program": "B.Tech"
+    },
+    "docHash": "0xac5ab89747fd73fbc440b8519cbd8526982157b02b92ed0484d7300c659a83ab",
+    "tokenId": 1
+  },
+  {
+    "id": "cred-demo-3",
+    "issuerDid": "did:web:university-a.edu",
+    "issuerName": "University A",
+    "studentName": "Rahul Sharma",
+    "studentAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "rollNumber": "2021EE012",
+    "course": "B.Tech Electrical Engineering",
+    "docType": "migration",
+    "issuedAt": "2025-07-01T09:00:00Z",
+    "claims": {
+      "cgpa": 7.9,
+      "program": "B.Tech",
+      "destination": "University B"
+    },
+    "docHash": "0xa5252521358908cdd3674f823fc73f76b7dfaa24b5a9fcbb5be28ef6b2c07415",
+    "tokenId": 2
+  },
+  {
+    "id": "cred-demo-4",
+    "issuerDid": "did:web:university-a.edu",
+    "issuerName": "University A",
+    "studentName": "Demo User (Admin)",
+    "studentAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "rollNumber": "2024ADMIN1",
+    "course": "B.Tech Computer Science",
+    "docType": "degree",
+    "issuedAt": "2025-08-01T09:00:00Z",
+    "claims": {
+      "cgpa": 9.5,
+      "program": "B.Tech"
+    },
+    "docHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "tokenId": 3
+  }
+]

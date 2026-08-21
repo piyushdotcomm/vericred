@@ -1,13 +1,8 @@
-"use client";
-
+import type { Metadata } from "next";
 import "./globals.css";
-import { Space_Grotesk } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import { IBM_Plex_Mono } from "next/font/google";
-
-const grotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-grotesk",
-});
+import { WalletProvider } from "@/components/wallet-provider";
 
 const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
@@ -21,8 +16,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${grotesk.variable} ${plexMono.variable}`}>
-      <body className="min-h-[100dvh] font-sans">{children}</body>
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${plexMono.variable} dark`}
+    >
+      <body className="min-h-[100dvh] font-sans bg-background text-ink selection:bg-ink selection:text-background">
+        <WalletProvider>
+          {children}
+        </WalletProvider>
+      </body>
     </html>
   );
 }

@@ -1,41 +1,39 @@
 import type { VerificationStatus } from "@/lib/types";
-
-const statusColor: Record<VerificationStatus, string> = {
-  VALID: "var(--valid)",
-  TAMPERED: "var(--tampered)",
-  REVOKED: "var(--revoked)",
-  EXPIRED: "#6B7280",
-  DENIED: "#6B7280",
-};
-
-const statusLabel: Record<VerificationStatus, string> = {
-  VALID: "VALID",
-  TAMPERED: "TAMPERED",
-  REVOKED: "REVOKED",
-  EXPIRED: "EXPIRED",
-  DENIED: "DENIED",
-};
+import { CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 
 export function Seal({ status }: { status: VerificationStatus }) {
-  const color = statusColor[status];
-  const label = statusLabel[status];
+  const isTampered = status === "TAMPERED";
+  const isRevoked = status === "REVOKED";
+  const isExpired = status === "EXPIRED";
+  const isValid = status === "VALID";
+
+  const colorClass = isTampered
+    ? "text-tampered border-tampered bg-tamperedBg"
+    : isRevoked
+      ? "text-revoked border-revoked bg-revokedBg"
+      : isExpired
+        ? "text-inkMuted border-inkMuted bg-transparent"
+        : isValid
+          ? "text-valid border-valid bg-validBg"
+          : "text-inkMuted border-inkMuted bg-transparent";
+
+  const label = status;
 
   return (
     <div
-      className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-2"
-      style={{ borderColor: color }}
+      className={`relative flex h-20 w-20 shrink-0 items-center justify-center rounded-none border-[1px] p-1 ${colorClass}`}
       aria-label={`Verification status: ${label}`}
     >
       <div
-        className="flex h-[76px] w-[76px] items-center justify-center rounded-full border"
-        style={{ borderColor: color }}
+        className={`flex h-full w-full flex-col items-center justify-center gap-1 border-[1px] border-dashed ${colorClass}`}
       >
-        <span
-          className="text-center font-mono text-[11px] font-semibold uppercase leading-tight tracking-wide"
-          style={{ color }}
-        >
-          {label}
-        </span>
+        {isValid && <CheckCircle2 className="h-5 w-5" />}
+        {isTampered && <AlertTriangle className="h-5 w-5" />}
+        {isRevoked && <XCircle className="h-5 w-5" />}
+        {isExpired && <Clock className="h-5 w-5" />}
+        {!isValid && !isTampered && !isRevoked && !isExpired && (
+          <XCircle className="h-5 w-5" />
+        )}
       </div>
     </div>
   );
