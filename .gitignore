@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+build
+.env
+.env.local
+.env*.local
+contracts/node_modules
+contracts/artifacts
+contracts/cache
+*.log
+.DS_Store
+
+# Agent tooling (personal skills, not project source)
+.agents/
+.claude/
+.commandcode/
