@@ -1,0 +1,24 @@
+{
+  "name": "vericred-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
+    "seed": "hardhat run scripts/seed.js --network localhost",
+    "seed:amoy": "hardhat run scripts/seed.js --network amoy",
+    "simulate-diploma-mill": "hardhat run scripts/simulate-diploma-mill.js --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.1.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.14.0",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
