@@ -177,7 +177,7 @@ export default function IssuerPage() {
 
   useEffect(() => {
     if (!isConnected || !address) return;
-    checkIsIssuer(address as Address).then(setIsAuthorized);
+    checkIsIssuer(address as Address).then(setIsAuthorized).catch(e => setDebugError(e.message || String(e)));
     fetchIssued();
     fetchActivity();
   }, [isConnected, address, fetchIssued, fetchActivity]);
@@ -365,16 +365,27 @@ export default function IssuerPage() {
             terminal.
           </p>
         </div>
-      ) : !isAuthorized ? (
-        <div className="mt-8 border border-tampered bg-tamperedBg p-8">
-          <p className="font-mono text-xs text-tampered uppercase tracking-widest">
-            // NOT AUTHORIZED
-          </p>
-          <p className="mt-4 text-inkMuted max-w-md">
-            This wallet does not hold the ISSUER_ROLE on the credential
-            registry. Connect the registered institutional wallet.
-          </p>
-        </div>
+        ) : isAuthorized ? (
+          <div className="bg-ink p-8 space-y-6">
+            <h2 className="text-xl tracking-widest uppercase border-b border-white/10 pb-4 mb-6 text-mint">
+              // Control Panel
+            </h2>
+            <IssuerForm />
+          </div>
+        ) : (
+          <div className="border border-red-500 bg-red-950/20 p-6 max-w-2xl text-red-500 font-mono text-sm">
+            <p className="mb-2">// NOT AUTHORIZED</p>
+            <p>This wallet does not hold the ISSUER_ROLE on the credential registry. Connect the registered institutional wallet.</p>
+            <div className="mt-4 p-4 bg-black border border-red-500/50 text-xs text-white">
+              <p className="text-red-400 font-bold mb-2">DEBUG INFO:</p>
+              <p>Address: {address}</p>
+              <p>Contract: {CONTRACT_ADDRESS}</p>
+              <p>RPC URL: {process.env.NEXT_PUBLIC_RPC_URL || 'NOT SET'}</p>
+              <p>Chain ID: {process.env.NEXT_PUBLIC_CHAIN_ID || 'NOT SET'}</p>
+              {debugError && <p className="mt-2 text-yellow-400">ERROR: {debugError}</p>}
+            </div>
+          </div>
+        )}
       ) : (
         <div className="mt-12 space-y-8">
           <div className="border-b border-border pb-4 flex justify-between items-end">
