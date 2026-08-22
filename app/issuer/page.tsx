@@ -112,28 +112,28 @@ export default function IssuerPage() {
         event: parseAbiItem(
           "event CredentialIssued(uint256 indexed tokenId, address indexed issuer, address indexed student, bytes32 docHash, string docType)",
         ),
-        fromBlock: "earliest",
+        fromBlock: 11541000n,
       }),
       client.getLogs({
         address: CONTRACT_ADDRESS,
         event: parseAbiItem(
           "event CredentialRevoked(uint256 indexed tokenId, address indexed issuer)",
         ),
-        fromBlock: "earliest",
+        fromBlock: 11541000n,
       }),
       client.getLogs({
         address: CONTRACT_ADDRESS,
         event: parseAbiItem(
           "event MigrationAccepted(uint256 indexed tokenId, address indexed issuer, address indexed destination)",
         ),
-        fromBlock: "earliest",
+        fromBlock: 11541000n,
       }),
       client.getLogs({
         address: CONTRACT_ADDRESS,
         event: parseAbiItem(
           "event MigrationPresented(uint256 indexed tokenId, address indexed student, address indexed destination)",
         ),
-        fromBlock: "earliest",
+        fromBlock: 11541000n,
       }),
     ]);
 

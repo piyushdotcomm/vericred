@@ -169,7 +169,7 @@ export async function getTokenIdByHash(
         { type: "string", name: "docType", indexed: false },
       ],
     },
-    fromBlock: "earliest",
+    fromBlock: 11541000n,
   });
 
   const match = logs.find(
