@@ -36,6 +36,7 @@ export default function StudentPage() {
   const { toast } = useToast();
 
   const [shared, setShared] = useState<Record<string, string>>({});
+  const [sharedJson, setSharedJson] = useState<Record<string, string>>({});
   const [credentials, setCredentials] = useState<VaultCredential[]>([]);
   const [accessLogs, setAccessLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -134,9 +135,11 @@ export default function StudentPage() {
         grant: { verifier, credentialId: vc.credential.id, expiresAt, signature },
       };
 
+      const rawJson = JSON.stringify(payloadObj, null, 2);
       const payload = btoa(JSON.stringify(payloadObj));
       const url = `${window.location.origin}/verify?c=${payload}`;
       setShared((prev) => ({ ...prev, [vc.credential.id]: url }));
+      setSharedJson((prev) => ({ ...prev, [vc.credential.id]: rawJson }));
       setGrantSignatures((prev) => ({ ...prev, [vc.credential.id]: signature }));
       setSharingCredId(null);
       toast("Access grant generated successfully.", "success");
@@ -374,7 +377,7 @@ export default function StudentPage() {
               )}
 
               {shared[vc.credential.id] && (
-                <div className="p-6 border border-border rounded-soft bg-surfaceAlt/50 inline-flex flex-col items-center gap-4 text-center">
+                <div className="p-6 border border-border rounded-soft bg-surfaceAlt/50 inline-flex flex-col items-center gap-4 text-center w-full max-w-lg">
                   <p className="eyebrow">Scan to Verify (Expires {expiryHours}h)</p>
                   <div className="bg-white p-4 rounded-sm shadow-sm">
                     <QRCodeSVG value={shared[vc.credential.id]} size={160} />
@@ -382,7 +385,27 @@ export default function StudentPage() {
                   <p className="text-xs text-inkSecondary max-w-[200px]">
                     This QR code contains a cryptographically signed grant.
                   </p>
-                  <Button variant="ghost" onClick={() => revokeGrant(vc.credential.id)} className="text-tampered hover:bg-tamperedBg hover:text-tampered">
+
+                  <div className="w-full text-left mt-4">
+                    <p className="text-xs font-semibold text-ink mb-2">Raw JSON Payload:</p>
+                    <div className="relative">
+                      <pre className="text-[10px] font-mono text-inkSecondary bg-surface p-3 rounded-sm border border-border overflow-x-auto max-h-40 overflow-y-auto w-full">
+                        {sharedJson[vc.credential.id]}
+                      </pre>
+                      <Button
+                        variant="secondary"
+                        className="absolute top-2 right-2 px-3 py-1.5 text-xs h-auto bg-surfaceAlt hover:bg-border"
+                        onClick={() => {
+                          navigator.clipboard.writeText(sharedJson[vc.credential.id]);
+                          toast("JSON copied to clipboard!", "success");
+                        }}
+                      >
+                        Copy JSON
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button variant="ghost" onClick={() => revokeGrant(vc.credential.id)} className="text-tampered hover:bg-tamperedBg hover:text-tampered mt-2">
                     Revoke Access Link
                   </Button>
                 </div>

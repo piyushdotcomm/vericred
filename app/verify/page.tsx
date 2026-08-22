@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
+import jsQR from "jsqr";
 import { useSearchParams } from "next/navigation";
 import { useAccount, useWalletClient } from "wagmi";
 import { CredentialCard } from "@/components/credential-card";
@@ -63,6 +64,59 @@ function VerifyContent() {
   const [isAccepting, setIsAccepting] = useState(false);
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [migrationStatus, setMigrationStatus] = useState<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        context.drawImage(img, 0, 0, img.width, img.height);
+        const imageData = context.getImageData(0, 0, img.width, img.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "dontInvert",
+        });
+
+        if (code) {
+          try {
+            const url = new URL(code.data);
+            const cParam = url.searchParams.get("c");
+            if (cParam) {
+              const decoded = atob(cParam);
+              setInput(decoded);
+              runVerification(decoded);
+              toast("QR Code scanned successfully!", "success");
+            } else {
+              toast("QR code does not contain a valid Vericred payload.", "error");
+            }
+          } catch (err) {
+            // If it's not a URL, it might just be the raw JSON
+            try {
+              const decoded = atob(code.data);
+              setInput(decoded);
+              runVerification(decoded);
+            } catch {
+              setInput(code.data);
+              runVerification(code.data);
+            }
+          }
+        } else {
+          toast("No QR code found in the image. Please try a clearer screenshot.", "error");
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   async function acceptMigration() {
     if (!credential || !isConnected || !address || tokenId === null || !walletClient) return;
@@ -244,13 +298,28 @@ function VerifyContent() {
                   </Button>
                   <Button
                     variant="secondary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                    className="w-full sm:w-auto"
+                  >
+                    Upload QR Image
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       const demo = JSON.stringify(demoCredential, null, 2);
                       setInput(demo);
                       runVerification(demo);
                     }}
                     disabled={isLoading}
-                    className="w-full sm:w-auto"
+                    className="w-full sm:w-auto text-inkMuted hover:text-ink"
                   >
                     Load Demo Asset
                   </Button>
