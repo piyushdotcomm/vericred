@@ -445,6 +445,63 @@ export default function IssuerPage() {
           >
             <div className="p-6 border-b border-border">
               <h2 className="font-serif text-xl">Issued Credentials</h2>
+
+          <div className="border border-border bg-surface p-8 relative mt-12">
+            <h2 className="text-xl font-medium tracking-tight uppercase mb-8">
+              Issued Credentials Dashboard
+            </h2>
+            <div className="space-y-4">
+              {issued.length === 0 ? (
+                <p className="font-mono text-xs text-inkMuted uppercase tracking-widest">
+                  NO_CREDENTIALS_ISSUED_YET
+                </p>
+              ) : (
+                issued.map((row) => (
+                  <div
+                    key={row.credential.id}
+                    className="flex flex-col md:flex-row md:items-center justify-between p-4 border border-border bg-background gap-4"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">
+                        {row.credential.studentName}{" "}
+                        <span className="text-inkMuted ml-2">
+                          ({row.credential.claims.program})
+                        </span>
+                      </p>
+                      <p className="font-mono text-[10px] text-inkMuted uppercase tracking-widest mt-1">
+                        TOKEN: {row.tokenId} · {row.credential.docType}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {row.revoked ? (
+                        <span className="font-mono text-xs text-tampered uppercase tracking-widest px-3 py-1 bg-tamperedBg border border-tampered">
+                          REVOKED
+                        </span>
+                      ) : (
+                        <span className="font-mono text-xs text-valid uppercase tracking-widest px-3 py-1 bg-validBg border border-valid">
+                          ACTIVE
+                        </span>
+                      )}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(row.credential, null, 2));
+                          alert('Credential JSON copied to clipboard! Paste it in the Verify Asset page.');
+                        }}
+                        className="bg-transparent border border-border px-4 py-2 text-xs uppercase tracking-widest hover:border-valid hover:text-valid transition-colors"
+                      >
+                        Copy JSON
+                      </button>
+                      <button
+                        onClick={() => revoke(row.tokenId)}
+                        disabled={row.revoked || isRevoking === row.tokenId}
+                        className="bg-transparent border border-border px-4 py-2 text-xs uppercase tracking-widest hover:border-tampered hover:text-tampered disabled:opacity-50 transition-colors"
+                      >
+                        {isRevoking === row.tokenId ? "..." : "Revoke"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
             {issued.length === 0 ? (
               <EmptyState 
