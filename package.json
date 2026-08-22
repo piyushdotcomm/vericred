@@ -12,7 +12,6 @@
     "db:seed": "node scripts/db-seed.mjs"
   },
   "dependencies": {
-    "@next/swc-win32-x64-msvc": "14.2.15",
     "@phosphor-icons/react": "^2.1.7",
     "@rainbow-me/rainbowkit": "^2.2.11",
     "@supabase/supabase-js": "^2.112.3",
