@@ -12,7 +12,6 @@ export function Navbar() {
     { label: "How It Works", href: "#how-it-works" },
     { label: "Features", href: "#features" },
     { label: "For Issuers", href: "#issuers" },
-    { label: "Docs", href: "#" },
   ];
 
   return (
@@ -44,7 +43,6 @@ export function Navbar() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="ghost" className="px-4">Contact</Button>
             <Button variant="primary">Verify Now &rarr;</Button>
           </div>
 
@@ -81,7 +79,6 @@ export function Navbar() {
                 </Link>
               ))}
               <div className="mt-6 pt-6 border-t border-border flex flex-col gap-3 px-3">
-                <Button variant="ghost" className="w-full justify-center">Contact</Button>
                 <Button variant="primary" className="w-full justify-center">Verify Now &rarr;</Button>
               </div>
             </div>
