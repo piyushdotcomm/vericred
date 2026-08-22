@@ -446,6 +446,7 @@ export default function IssuerPage() {
             <div className="p-6 border-b border-border">
               <h2 className="font-serif text-xl">Issued Credentials</h2>
 
+            </div>
             {issued.length === 0 ? (
               <EmptyState 
                 icon={FileText} 
