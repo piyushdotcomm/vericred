@@ -37,6 +37,7 @@ export default function IssuerPage() {
   const { data: walletClient } = useWalletClient();
   const { signIn, signingIn } = useSiwe();
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
   const [studentName, setStudentName] = useState("");
   const [studentAddress, setStudentAddress] = useState("");
   const [course, setCourse] = useState("");
