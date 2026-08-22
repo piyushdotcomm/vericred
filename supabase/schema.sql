@@ -81,3 +81,14 @@ create policy "public read revoked grants"
 create policy "student reads own access logs"
   on public.access_logs for select
   using (auth.uid() is null or student_address = lower((auth.jwt()->>'sub')::text));
+
+
+-- Student Identities (KYC): links a wallet to a verified email
+create table if not exists public.student_identities (
+  wallet_address text primary key,
+  verified_email text not null,
+  verified_at timestamptz not null default now()
+);
+
+alter table public.student_identities enable row level security;
+

@@ -309,3 +309,54 @@ export async function consumeAuthNonce(address: string): Promise<void> {
   );
   writeJson(AUTH_NONCES_FILE, next);
 }
+
+// ---------------------------------------------------------------------------
+// Student Identities (KYC)
+// ---------------------------------------------------------------------------
+
+export interface StudentIdentityRow {
+  wallet_address: string;
+  verified_email: string;
+  verified_at: string;
+}
+
+export async function getStudentIdentity(walletAddress: string): Promise<StudentIdentityRow | null> {
+  if (hasSupabase()) {
+    const db = getSupabaseAdmin();
+    const { data, error } = await db
+      .from('student_identities')
+      .select('*')
+      .eq('wallet_address', walletAddress.toLowerCase())
+      .maybeSingle();
+    if (error) throw error;
+    return data as StudentIdentityRow | null;
+  }
+  
+  const identities = readJson<StudentIdentityRow[]>(path.join(DATA_DIR, 'student_identities.json'), []);
+  return identities.find(i => i.wallet_address === walletAddress.toLowerCase()) ?? null;
+}
+
+export async function createStudentIdentity(walletAddress: string, verifiedEmail: string): Promise<void> {
+  if (hasSupabase()) {
+    const db = getSupabaseAdmin();
+    const { error } = await db.from('student_identities').upsert({
+      wallet_address: walletAddress.toLowerCase(),
+      verified_email: verifiedEmail
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const file = path.join(DATA_DIR, 'student_identities.json');
+  const identities = readJson<StudentIdentityRow[]>(file, []);
+  const index = identities.findIndex(i => i.wallet_address === walletAddress.toLowerCase());
+  const row = {
+    wallet_address: walletAddress.toLowerCase(),
+    verified_email: verifiedEmail,
+    verified_at: new Date().toISOString()
+  };
+  if (index >= 0) identities[index] = row;
+  else identities.push(row);
+  writeJson(file, identities);
+}
+
