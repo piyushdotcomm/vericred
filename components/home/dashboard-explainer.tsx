@@ -37,7 +37,7 @@ export function DashboardExplainer() {
   ];
 
   return (
-    <section className="py-24 bg-background border-t border-border relative overflow-hidden">
+    <section id="roles" className="py-24 bg-background border-t border-border relative overflow-hidden">
       
       {/* Floating Mock Credentials */}
       <motion.div 

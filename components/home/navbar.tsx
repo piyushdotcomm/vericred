@@ -43,7 +43,9 @@ export function Navbar() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="primary">Verify Now &rarr;</Button>
+            <Link href="#roles">
+              <Button variant="primary">Roles</Button>
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -79,7 +81,9 @@ export function Navbar() {
                 </Link>
               ))}
               <div className="mt-6 pt-6 border-t border-border flex flex-col gap-3 px-3">
-                <Button variant="primary" className="w-full justify-center">Verify Now &rarr;</Button>
+                <Link href="#roles" onClick={() => setIsMobileMenuOpen(false)} className="w-full">
+                  <Button variant="primary" className="w-full justify-center">Roles</Button>
+                </Link>
               </div>
             </div>
           </motion.div>
