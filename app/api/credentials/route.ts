@@ -17,7 +17,7 @@ export async function GET() {
         rollNumber: r.roll_number ?? "",
         course: r.course ?? "",
         docType: r.doc_type,
-        issuedAt: r.issued_at,
+        issuedAt: new Date(r.issued_at).toISOString(),
         claims: r.claims,
         issuedBy: r.issued_by ?? undefined,
         cid: r.cid ?? "",
