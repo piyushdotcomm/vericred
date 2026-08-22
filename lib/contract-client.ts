@@ -11,7 +11,7 @@ import {
   toHex,
   verifyTypedData,
 } from "viem";
-import { hardhat, polygonAmoy } from "viem/chains";
+import { hardhat, polygonAmoy, sepolia } from "viem/chains";
 import { CREDENTIAL_SBT_ABI } from "./contract-abi";
 import type { Credential, RegistryStats } from "./types";
 import { canonicalJson, normalizeCredential } from "./hash";
@@ -23,11 +23,9 @@ export const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545";
 
 export function getChain(): Chain {
-  return process.env.NEXT_PUBLIC_CHAIN_ID === "80002" ||
-    RPC_URL.includes("amoy") ||
-    RPC_URL.includes("polygon")
-    ? polygonAmoy
-    : hardhat;
+  if (process.env.NEXT_PUBLIC_CHAIN_ID === "11155111" || RPC_URL.includes("sepolia")) return sepolia;
+  if (process.env.NEXT_PUBLIC_CHAIN_ID === "80002" || RPC_URL.includes("amoy")) return polygonAmoy;
+  return hardhat;
 }
 
 let CONTRACT_ADDRESS: Address =
