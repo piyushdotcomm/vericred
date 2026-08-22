@@ -11,6 +11,10 @@ contracts/cache
 *.log
 .DS_Store
 
+# Runtime-generated data (seeded locally, re-created on demand)
+data/
+lib/deployment.json
+
 # Agent tooling (personal skills, not project source)
 .agents/
 .claude/
