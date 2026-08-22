@@ -14,6 +14,11 @@ async function main() {
   const address = await contract.getAddress();
   console.log("CredentialSBT deployed to:", address);
 
+  console.log("Registering deployer as 'University A' in Issuer Registry...");
+  const tx = await contract.registerIssuer(deployer.address, "University A");
+  await tx.wait();
+  console.log("Issuer registered successfully.");
+
   const deployment = {
     address,
     deployer: deployer.address,

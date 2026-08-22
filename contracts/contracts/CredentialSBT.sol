@@ -31,6 +31,9 @@ contract CredentialSBT is ERC721, AccessControl {
     mapping(bytes32 => uint256) private _tokenByHash;
     mapping(bytes32 => uint256) private _hashCount;
 
+    mapping(address => string) private _issuerNames;
+    event IssuerRegistered(address indexed issuer, string name);
+
     // Issuer-level counters power the AI risk engine's on-chain signals.
     mapping(address => uint256) private _issuerCredentialCount;
     mapping(address => uint256) private _issuerFirstIssuedAt;
@@ -64,6 +67,18 @@ contract CredentialSBT is ERC721, AccessControl {
     constructor() ERC721("VeriCred", "VCRD") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ISSUER_ROLE, msg.sender);
+        _issuerNames[msg.sender] = "Default Issuer";
+    }
+
+    function registerIssuer(address issuer, string calldata name) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(bytes(name).length > 0, "Invalid name");
+        _grantRole(ISSUER_ROLE, issuer);
+        _issuerNames[issuer] = name;
+        emit IssuerRegistered(issuer, name);
+    }
+
+    function getIssuerName(address issuer) external view returns (string memory) {
+        return _issuerNames[issuer];
     }
 
     function issueCredential(
@@ -158,16 +173,17 @@ contract CredentialSBT is ERC721, AccessControl {
             address issuer,
             address student,
             bool revoked,
-            string memory docType
+            string memory docType,
+            string memory issuerName
         )
     {
         uint256 tokenId = _tokenByHash[docHash];
         if (tokenId == 0 && _hashCount[docHash] == 0) {
-            return (false, address(0), address(0), false, "");
+            return (false, address(0), address(0), false, "", "");
         }
 
         Credential storage c = _credentials[tokenId];
-        return (true, c.issuer, c.student, c.revoked, c.docType);
+        return (true, c.issuer, c.student, c.revoked, c.docType, _issuerNames[c.issuer]);
     }
 
     function revokeCredential(uint256 tokenId)
