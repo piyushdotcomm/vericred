@@ -548,6 +548,15 @@ export default function IssuerPage() {
                         </span>
                       )}
                       <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(row.credential, null, 2));
+                          alert('Credential JSON copied to clipboard! Paste it in the Verify Asset page.');
+                        }}
+                        className="bg-transparent border border-border px-4 py-2 text-xs uppercase tracking-widest hover:border-valid hover:text-valid transition-colors"
+                      >
+                        Copy JSON
+                      </button>
+                      <button
                         onClick={() => revoke(row.tokenId)}
                         disabled={row.revoked || isRevoking === row.tokenId}
                         className="bg-transparent border border-border px-4 py-2 text-xs uppercase tracking-widest hover:border-tampered hover:text-tampered disabled:opacity-50 transition-colors"
