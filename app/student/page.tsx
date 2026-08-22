@@ -298,13 +298,13 @@ export default function StudentPage() {
 
               <div className="flex flex-wrap gap-4">
                 {!shared[vc.credential.id] && sharingCredId !== vc.credential.id && (
-                  <Button variant="outline" onClick={() => setSharingCredId(vc.credential.id)}>
+                  <Button variant="secondary" onClick={() => setSharingCredId(vc.credential.id)}>
                     Generate Proof Link
                   </Button>
                 )}
                 
                 {vc.docType === "migration" && vc.migrationStatus === 1 && (
-                  <Button variant="outline" onClick={() => setPresentingCredId(vc.credential.id)}>
+                  <Button variant="secondary" onClick={() => setPresentingCredId(vc.credential.id)}>
                     Present to University
                   </Button>
                 )}

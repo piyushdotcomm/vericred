@@ -243,7 +243,7 @@ function VerifyContent() {
                     {isLoading ? "Verifying Ledger..." : "Run Verification"}
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => {
                       const demo = JSON.stringify(demoCredential, null, 2);
                       setInput(demo);
@@ -389,7 +389,7 @@ function VerifyContent() {
                 {result.valid && !result.revoked && (
                   <div className="pt-6">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       className="w-full gap-2"
                       onClick={() => window.print()}
                     >
