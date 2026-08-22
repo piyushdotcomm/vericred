@@ -549,7 +549,20 @@ export default function IssuerPage() {
                       )}
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(JSON.stringify(row.credential, null, 2));
+                          const baseCred = {
+                            id: row.credential.id,
+                            issuerDid: row.credential.issuerDid,
+                            issuerName: row.credential.issuerName,
+                            studentName: row.credential.studentName,
+                            studentAddress: row.credential.studentAddress,
+                            rollNumber: row.credential.rollNumber,
+                            course: row.credential.course,
+                            docType: row.credential.docType,
+                            issuedAt: row.credential.issuedAt,
+                            claims: row.credential.claims,
+                            issuedBy: row.credential.issuedBy
+                          };
+                          navigator.clipboard.writeText(JSON.stringify(baseCred, null, 2));
                           alert('Credential JSON copied to clipboard! Paste it in the Verify Asset page.');
                         }}
                         className="bg-transparent border border-border px-4 py-2 text-xs uppercase tracking-widest hover:border-valid hover:text-valid transition-colors"
