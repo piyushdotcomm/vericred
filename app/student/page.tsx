@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient } from "wagmi";
-import { WalletConnect } from "@/components/wallet-connect";
 import { CredentialCard } from "@/components/credential-card";
 import {
   signGrant,
@@ -13,6 +12,13 @@ import {
 import type { Credential } from "@/lib/types";
 import { QRCodeSVG } from "qrcode.react";
 import type { Address } from "viem";
+
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DataTable, DataTableHeader, DataTableRow, DataTableHead, DataTableCell } from "@/components/ui/data-table";
+import { ShieldCheck, Fingerprint, Activity, User } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { motion } from "motion/react";
 
 interface VaultCredential {
   credential: Credential;
@@ -27,6 +33,8 @@ interface VaultCredential {
 export default function StudentPage() {
   const { isConnected, address } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const { toast } = useToast();
+
   const [shared, setShared] = useState<Record<string, string>>({});
   const [credentials, setCredentials] = useState<VaultCredential[]>([]);
   const [accessLogs, setAccessLogs] = useState<any[]>([]);
@@ -37,9 +45,7 @@ export default function StudentPage() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
-  const [grantSignatures, setGrantSignatures] = useState<
-    Record<string, string>
-  >({});
+  const [grantSignatures, setGrantSignatures] = useState<Record<string, string>>({});
   const [presentingCredId, setPresentingCredId] = useState<string | null>(null);
   const [destinationAddress, setDestinationAddress] = useState("");
 
@@ -47,10 +53,7 @@ export default function StudentPage() {
     if (!address) return;
     setIsLoading(true);
     try {
-      // Real on-chain indexer: read the SBTs owned by this wallet.
       const tokenIds = await tokensOfOwner(address as Address);
-
-      // Fetch the metadata cache once (instead of per token).
       const res = await fetch("/api/credentials");
       const all: (Credential & {
         tokenId?: number;
@@ -92,9 +95,7 @@ export default function StudentPage() {
 
       setCredentials(onchain);
 
-      const logRes = await fetch(
-        `/api/access-logs?student=${address}`,
-      ).catch(() => null);
+      const logRes = await fetch(`/api/access-logs?student=${address}`).catch(() => null);
       const logs = logRes ? await logRes.json() : [];
       setAccessLogs(logs.reverse());
     } catch (e) {
@@ -124,24 +125,13 @@ export default function StudentPage() {
     try {
       const verifier = (verifierAddress || "0x0000000000000000000000000000000000000000") as Address;
       const expiresAt = Math.floor(Date.now() / 1000) + expiryHours * 3600;
-      const signature = await signGrant(
-        walletClient,
-        address as Address,
-        verifier,
-        vc.credential.id,
-        expiresAt,
-      );
+      const signature = await signGrant(walletClient, address as Address, verifier, vc.credential.id, expiresAt);
 
       const payloadObj = {
         credential: vc.credential,
         cid: vc.cid ?? "",
         issuerSignature: vc.issuerSignature ?? "",
-        grant: {
-          verifier,
-          credentialId: vc.credential.id,
-          expiresAt,
-          signature,
-        },
+        grant: { verifier, credentialId: vc.credential.id, expiresAt, signature },
       };
 
       const payload = btoa(JSON.stringify(payloadObj));
@@ -149,8 +139,9 @@ export default function StudentPage() {
       setShared((prev) => ({ ...prev, [vc.credential.id]: url }));
       setGrantSignatures((prev) => ({ ...prev, [vc.credential.id]: signature }));
       setSharingCredId(null);
+      toast("Access grant generated successfully.", "success");
     } catch (e: any) {
-      alert("Failed to sign grant: " + e.message);
+      toast("Failed to sign grant: " + e.message, "error");
     }
   }
 
@@ -169,315 +160,277 @@ export default function StudentPage() {
         delete next[credentialId];
         return next;
       });
-      alert(
-        "Grant successfully revoked! Anyone scanning this QR code will now be denied access.",
-      );
+      toast("Grant successfully revoked! Scanning the QR code will now be denied.", "success");
     } catch (e: any) {
-      alert("Failed to revoke grant: " + e.message);
+      toast("Failed to revoke grant: " + e.message, "error");
     }
   }
 
   async function presentMigration(vc: VaultCredential) {
     if (!destinationAddress || !walletClient || !address) return;
     try {
-      const tx = await presentMigrationOnChain(
-        walletClient,
-        address as Address,
-        vc.tokenId,
-        destinationAddress as Address,
-      );
-      alert(`Migration presented! Tx: ${tx.slice(0, 10)}...`);
+      const tx = await presentMigrationOnChain(walletClient, address as Address, vc.tokenId, destinationAddress as Address);
+      toast(`Migration presented! Tx: ${tx.slice(0, 10)}...`, "success");
       setPresentingCredId(null);
       setDestinationAddress("");
       await fetchVault();
     } catch (e: any) {
-      alert("Failed to present migration: " + e.message);
+      toast("Failed to present migration: " + e.message, "error");
     }
   }
 
-  const migrationLabel = (status: number) =>
-    ["none", "issued", "presented", "accepted"][status] ?? "unknown";
+  const migrationLabel = (status: number) => ["None", "Issued", "Presented", "Accepted"][status] ?? "Unknown";
 
-  return (
-    <main className="mx-auto max-w-3xl px-6 py-24 flex flex-col min-h-screen">
-      <header className="flex items-center justify-between mb-12">
-        <a
-          href="/"
-          className="font-mono text-xs uppercase tracking-widest text-inkMuted hover:text-ink transition-colors"
+  if (!isConnected) {
+    return (
+      <main className="p-8 min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <EmptyState 
+          icon={User}
+          title="Wallet Not Connected"
+          description="Connect your wallet using the button in the top right to access your academic vault."
+        />
+      </main>
+    );
+  }
+
+  if (!otpVerified) {
+    return (
+      <main className="p-8 min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-surface border border-border p-8 rounded-soft shadow-sm"
         >
-          &larr; Back to protocol
-        </a>
-        <WalletConnect />
-      </header>
+          <div className="flex justify-center mb-6 text-accent">
+            <Fingerprint className="w-12 h-12" />
+          </div>
+          <h2 className="text-2xl font-serif text-center mb-2">Simulated Aadhaar e-KYC</h2>
+          <p className="text-inkSecondary text-center text-sm mb-8">
+            To securely bind this wallet to your academic identity, please enter the OTP sent to your university-registered mobile number.
+          </p>
 
-      <h1 className="mt-6 text-4xl md:text-5xl font-sans tracking-tighter uppercase">
-        Holder <span className="text-inkMuted">Vault</span>
-      </h1>
-
-      {!isConnected ? (
-        <div className="mt-8 border border-border bg-surface p-8">
-          <p className="font-mono text-xs text-inkMuted uppercase tracking-widest">
-            // STATUS: UNAUTHORIZED
-          </p>
-          <p className="mt-4 text-inkMuted max-w-md">
-            Connect your wallet to access cryptographically bound credentials
-            issued to your address.
-          </p>
-        </div>
-      ) : !otpVerified ? (
-        <div className="mt-8 border border-border bg-surface p-8 relative">
-          <p className="font-mono text-xs text-tampered uppercase tracking-widest mb-4">
-            // IDENTITY_VERIFICATION_REQUIRED
-          </p>
-          <h2 className="text-xl font-medium tracking-tight uppercase mb-4">
-            Simulated Aadhaar e-KYC / OTP
-          </h2>
-          <p className="text-inkMuted max-w-md mb-6 text-sm">
-            To securely bind this wallet to your academic identity, please enter
-            the OTP sent to your university-registered mobile number.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 max-w-sm">
-            <div className="flex flex-col gap-4 w-full">
+          <div className="space-y-4">
+            <div>
+              <label className="eyebrow block mb-2">University Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter university email"
-                className="border border-border bg-background px-4 py-2 text-sm flex-1"
+                placeholder="student@university.edu"
+                className="w-full border border-border bg-background rounded-sm px-4 py-2.5 text-sm text-ink focus:border-ink/50 focus:outline-none"
               />
-              <div className="flex gap-4">
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter 6-digit OTP (hint: 123456)"
-                  className="border border-border bg-background px-4 py-2 text-sm uppercase tracking-widest flex-1"
-                />
-                <button
-                  onClick={async () => {
-                    const res = await fetch("/api/kyc/verify", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ address, email, otp })
-                    });
-                    if (res.ok) {
-                      setOtpVerified(true);
-                      fetchVault();
-                    } else {
-                      alert("Invalid OTP or email");
-                    }
-                  }}
-                  className="bg-ink text-background px-6 py-2 text-sm font-medium uppercase tracking-widest hover:opacity-90 whitespace-nowrap"
-                >
-                  Verify OTP
-                </button>
-              </div>
             </div>
+            <div>
+              <label className="eyebrow block mb-2">6-Digit OTP</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="123456"
+                className="w-full border border-border bg-background rounded-sm px-4 py-2.5 text-sm text-ink uppercase tracking-widest focus:border-ink/50 focus:outline-none"
+              />
+            </div>
+            <Button
+              variant="primary"
+              className="w-full mt-2"
+              onClick={async () => {
+                const res = await fetch("/api/kyc/verify", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ address, email, otp })
+                });
+                if (res.ok) {
+                  setOtpVerified(true);
+                  fetchVault();
+                } else {
+                  toast("Invalid OTP or email", "error");
+                }
+              }}
+            >
+              Verify Identity
+            </Button>
           </div>
+        </motion.div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12 space-y-12">
+      <div>
+        <h1 className="text-3xl font-serif text-ink mb-2">My Vault</h1>
+        <p className="text-inkSecondary flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-valid" /> Cryptographically bound to {address?.slice(0,6)}...{address?.slice(-4)}
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center p-12">
+          <p className="font-mono text-sm text-inkMuted uppercase tracking-widest animate-pulse">
+            Syncing Ledger...
+          </p>
         </div>
+      ) : credentials.length === 0 ? (
+        <EmptyState 
+          icon={ShieldCheck} 
+          title="No Assets Found" 
+          description="Your wallet does not currently hold any verifiable academic credentials."
+        />
       ) : (
-        <div className="mt-12 space-y-8">
-          <div className="border-b border-border pb-4">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-inkMuted">
-              CONNECTED_ADDRESS
-            </p>
-            <p className="font-mono text-sm text-ink mt-1 truncate">
-              {address}
-            </p>
-          </div>
-
-          {isLoading ? (
-            <p className="font-mono text-xs text-inkMuted uppercase tracking-widest animate-pulse">
-              SYNCING_LEDGER...
-            </p>
-          ) : credentials.length === 0 ? (
-            <div className="border border-border p-8 border-dashed bg-surface/50">
-              <p className="font-mono text-xs text-inkMuted uppercase tracking-widest">
-                NO_ASSETS_FOUND
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-12">
-              {credentials.map((vc) => (
-                <div key={vc.credential.id} className="group relative">
-                  <CredentialCard
-                    credential={vc.credential}
-                    status="VALID"
-                  />
-                  {vc.docType === "migration" && (
-                    <div className="mt-4 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-inkMuted">
-                      MIGRATION_STATUS:{" "}
-                      <span className="text-ink">
-                        {migrationLabel(vc.migrationStatus)}
-                      </span>
-                      {vc.presentedTo &&
-                        vc.presentedTo !==
-                          "0x0000000000000000000000000000000000000000" && (
-                          <span className="truncate">
-                            → {vc.presentedTo.slice(0, 10)}...
-                          </span>
-                        )}
-                    </div>
-                  )}
-
-                  <div className="mt-6 flex flex-wrap gap-4">
-                    {!shared[vc.credential.id] &&
-                      sharingCredId !== vc.credential.id && (
-                        <button
-                          type="button"
-                          onClick={() => setSharingCredId(vc.credential.id)}
-                          className="border border-border bg-transparent px-6 py-2.5 text-xs font-medium uppercase tracking-widest text-ink transition-all hover:border-ink/50"
-                        >
-                          Generate Proof Link
-                        </button>
-                      )}
-                    {vc.docType === "migration" &&
-                      vc.migrationStatus === 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setPresentingCredId(vc.credential.id)}
-                          className="border border-border bg-transparent px-6 py-2.5 text-xs font-medium uppercase tracking-widest text-ink transition-all hover:border-valid hover:text-valid"
-                        >
-                          Present to University
-                        </button>
-                      )}
-                    {shared[vc.credential.id] && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigator.clipboard.writeText(shared[vc.credential.id])
-                        }
-                        className="bg-accent text-background px-6 py-2.5 text-xs font-medium uppercase tracking-widest transition-transform hover:-translate-y-[1px] active:translate-y-0"
-                      >
-                        Copy Link
-                      </button>
-                    )}
-                  </div>
-
-                  {sharingCredId === vc.credential.id && (
-                    <div className="mt-6 p-6 border border-border bg-surface flex flex-col gap-4">
-                      <p className="font-mono text-xs uppercase tracking-widest text-inkMuted">
-                        Configure Access Grant
-                      </p>
-                      <div>
-                        <label className="text-sm">Verifier address (blank = bearer)</label>
-                        <input
-                          type="text"
-                          value={verifierAddress}
-                          onChange={(e) => setVerifierAddress(e.target.value)}
-                          placeholder="0x..."
-                          className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm">Expires in (hours):</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={720}
-                          value={expiryHours}
-                          onChange={(e) =>
-                            setExpiryHours(Number(e.target.value))
-                          }
-                          className="border border-border bg-background px-3 py-1 w-24 text-sm"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => generateGrant(vc)}
-                        className="bg-ink text-background px-6 py-2.5 text-xs font-medium uppercase tracking-widest hover:opacity-90 self-start"
-                      >
-                        Sign & Generate QR
-                      </button>
-                    </div>
-                  )}
-
-                  {presentingCredId === vc.credential.id && (
-                    <div className="mt-6 p-6 border border-border bg-surface flex flex-col gap-4">
-                      <p className="font-mono text-xs uppercase tracking-widest text-inkMuted">
-                        Present Migration to Destination University
-                      </p>
-                      <input
-                        type="text"
-                        value={destinationAddress}
-                        onChange={(e) => setDestinationAddress(e.target.value)}
-                        placeholder="Destination university wallet address (0x...)"
-                        className="w-full border border-border bg-background px-3 py-2 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => presentMigration(vc)}
-                        className="bg-ink text-background px-6 py-2.5 text-xs font-medium uppercase tracking-widest hover:opacity-90 self-start"
-                      >
-                        Sign & Present
-                      </button>
-                    </div>
-                  )}
-
-                  {shared[vc.credential.id] && (
-                    <div className="mt-6 p-6 border border-border bg-background inline-flex flex-col items-center gap-4">
-                      <p className="font-mono text-xs uppercase tracking-widest text-inkMuted">
-                        Scan to Verify (Expires {expiryHours}h)
-                      </p>
-                      <div className="bg-white p-4">
-                        <QRCodeSVG
-                          value={shared[vc.credential.id]}
-                          size={160}
-                        />
-                      </div>
-                      <p className="text-xs text-inkMuted text-center max-w-[200px]">
-                        This QR code contains a cryptographically signed grant.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => revokeGrant(vc.credential.id)}
-                        className="mt-2 text-xs font-mono uppercase tracking-widest text-tampered hover:opacity-80 transition-opacity"
-                      >
-                        [ Revoke Access Link ]
-                      </button>
-                    </div>
+        <div className="space-y-12">
+          {credentials.map((vc) => (
+            <motion.div 
+              key={vc.credential.id} 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <CredentialCard credential={vc.credential} status="VALID" />
+              
+              {vc.docType === "migration" && (
+                <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-inkSecondary bg-surfaceAlt px-4 py-2 rounded-sm w-fit border border-border">
+                  MIGRATION STATUS: <span className="text-ink font-semibold">{migrationLabel(vc.migrationStatus)}</span>
+                  {vc.presentedTo && vc.presentedTo !== "0x0000000000000000000000000000000000000000" && (
+                    <span className="truncate"> → {vc.presentedTo.slice(0, 10)}...</span>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {credentials.length > 0 && (
-            <div className="mt-16 border-t border-border pt-12">
-              <h2 className="text-xl font-medium tracking-tight uppercase mb-8">
-                Verification Access Logs
-              </h2>
-              <div className="space-y-4">
-                {accessLogs.length === 0 ? (
-                  <p className="font-mono text-xs text-inkMuted uppercase tracking-widest">
-                    NO_ACCESS_HISTORY_FOUND
-                  </p>
-                ) : (
-                  accessLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="p-4 border border-border bg-surface flex flex-col md:flex-row md:justify-between md:items-center gap-4"
-                    >
-                      <div>
-                        <p className="font-medium text-sm">
-                          Credential ID: {log.credentialId}
-                        </p>
-                        <p className="font-mono text-xs text-inkMuted uppercase tracking-widest mt-1">
-                          Verifier: {log.verifierAddress}
-                        </p>
-                      </div>
-                      <div className="text-left md:text-right">
-                        <span className="font-mono text-[10px] text-inkMuted uppercase tracking-widest block mb-1">
-                          ACCESSED AT
-                        </span>
-                        <p className="text-sm font-medium">
-                          {new Date(log.timestamp).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))
+              <div className="flex flex-wrap gap-4">
+                {!shared[vc.credential.id] && sharingCredId !== vc.credential.id && (
+                  <Button variant="outline" onClick={() => setSharingCredId(vc.credential.id)}>
+                    Generate Proof Link
+                  </Button>
+                )}
+                
+                {vc.docType === "migration" && vc.migrationStatus === 1 && (
+                  <Button variant="outline" onClick={() => setPresentingCredId(vc.credential.id)}>
+                    Present to University
+                  </Button>
+                )}
+                
+                {shared[vc.credential.id] && (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shared[vc.credential.id]);
+                      toast("Link copied to clipboard!", "success");
+                    }}
+                  >
+                    Copy Link
+                  </Button>
                 )}
               </div>
+
+              {sharingCredId === vc.credential.id && (
+                <div className="p-6 border border-border rounded-soft bg-surface space-y-4 max-w-lg">
+                  <p className="eyebrow">Configure Access Grant</p>
+                  <div>
+                    <label className="block text-sm mb-1 text-inkSecondary">Verifier Address (leave blank for bearer token)</label>
+                    <input
+                      type="text"
+                      value={verifierAddress}
+                      onChange={(e) => setVerifierAddress(e.target.value)}
+                      placeholder="0x..."
+                      className="w-full border border-border bg-background rounded-sm px-4 py-2 text-sm focus:border-ink/50 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm text-inkSecondary">Expires in (hours)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={720}
+                      value={expiryHours}
+                      onChange={(e) => setExpiryHours(Number(e.target.value))}
+                      className="border border-border bg-background rounded-sm px-4 py-2 w-32 text-sm focus:border-ink/50 focus:outline-none"
+                    />
+                  </div>
+                  <div className="pt-2 flex gap-3">
+                     <Button variant="primary" onClick={() => generateGrant(vc)}>Sign & Generate Link</Button>
+                     <Button variant="ghost" onClick={() => setSharingCredId(null)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {presentingCredId === vc.credential.id && (
+                <div className="p-6 border border-border rounded-soft bg-surface space-y-4 max-w-lg">
+                  <p className="eyebrow">Present Migration</p>
+                  <div>
+                    <label className="block text-sm mb-1 text-inkSecondary">Destination University Address</label>
+                    <input
+                      type="text"
+                      value={destinationAddress}
+                      onChange={(e) => setDestinationAddress(e.target.value)}
+                      placeholder="0x..."
+                      className="w-full border border-border bg-background rounded-sm px-4 py-2 text-sm focus:border-ink/50 focus:outline-none"
+                    />
+                  </div>
+                  <div className="pt-2 flex gap-3">
+                     <Button variant="primary" onClick={() => presentMigration(vc)}>Sign & Present</Button>
+                     <Button variant="ghost" onClick={() => setPresentingCredId(null)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {shared[vc.credential.id] && (
+                <div className="p-6 border border-border rounded-soft bg-surfaceAlt/50 inline-flex flex-col items-center gap-4 text-center">
+                  <p className="eyebrow">Scan to Verify (Expires {expiryHours}h)</p>
+                  <div className="bg-white p-4 rounded-sm shadow-sm">
+                    <QRCodeSVG value={shared[vc.credential.id]} size={160} />
+                  </div>
+                  <p className="text-xs text-inkSecondary max-w-[200px]">
+                    This QR code contains a cryptographically signed grant.
+                  </p>
+                  <Button variant="ghost" onClick={() => revokeGrant(vc.credential.id)} className="text-tampered hover:bg-tamperedBg hover:text-tampered">
+                    Revoke Access Link
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {credentials.length > 0 && (
+        <div className="pt-8 border-t border-border mt-16">
+          <h2 className="text-xl font-serif mb-6 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-inkSecondary" /> Verification Access Logs
+          </h2>
+          {accessLogs.length === 0 ? (
+             <EmptyState 
+              icon={Activity} 
+              title="No Access History" 
+              description="No one has accessed your credentials yet."
+              className="bg-transparent border-0"
+            />
+          ) : (
+            <div className="border border-border rounded-soft overflow-hidden">
+              <DataTable>
+                <DataTableHeader>
+                  <tr>
+                    <DataTableHead>Date & Time</DataTableHead>
+                    <DataTableHead>Credential</DataTableHead>
+                    <DataTableHead>Verifier</DataTableHead>
+                  </tr>
+                </DataTableHeader>
+                <tbody>
+                  {accessLogs.map((log) => (
+                    <DataTableRow key={log.id}>
+                      <DataTableCell className="whitespace-nowrap">
+                        <span className="text-ink font-medium text-sm">{new Date(log.timestamp).toLocaleDateString()}</span>
+                        <span className="text-inkMuted text-xs ml-2">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="font-mono text-xs">{log.credentialId}</span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="font-mono text-xs text-inkSecondary bg-surfaceAlt px-2 py-1 rounded-sm">{log.verifierAddress.slice(0, 16)}...</span>
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </tbody>
+              </DataTable>
             </div>
           )}
         </div>
