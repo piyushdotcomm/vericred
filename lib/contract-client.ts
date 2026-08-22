@@ -102,6 +102,7 @@ export interface OnChainVerifyResult {
   student: Address;
   revoked: boolean;
   docType: string;
+  issuerName: string;
 }
 
 export async function verifyOnChain(
@@ -116,7 +117,7 @@ export async function verifyOnChain(
     abi: CREDENTIAL_SBT_ABI,
     functionName: "verifyCredential",
     args: [docHash as `0x${string}`],
-  })) as [boolean, Address, Address, boolean, string];
+  })) as [boolean, Address, Address, boolean, string, string];
 
   return {
     valid: result[0],
@@ -124,6 +125,7 @@ export async function verifyOnChain(
     student: result[2],
     revoked: result[3],
     docType: result[4],
+    issuerName: result[5],
   };
 }
 
@@ -203,62 +205,29 @@ export async function fetchRegistryStats(
   issuer: Address,
 ): Promise<RegistryStats> {
   const client = getPublicClient();
-  const [known, count, firstIssued, templateCount, lastIssued, total] =
-    (await client.multicall({
-      contracts: [
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CREDENTIAL_SBT_ABI,
-          functionName: "isIssuer",
-          args: [issuer],
-        },
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CREDENTIAL_SBT_ABI,
-          functionName: "issuerCredentialCount",
-          args: [issuer],
-        },
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CREDENTIAL_SBT_ABI,
-          functionName: "issuerFirstIssuedAt",
-          args: [issuer],
-        },
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CREDENTIAL_SBT_ABI,
-          functionName: "issuerTemplateCount",
-          args: [issuer],
-        },
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CREDENTIAL_SBT_ABI,
-          functionName: "issuerLastIssuedAt",
-          args: [issuer],
-        },
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CREDENTIAL_SBT_ABI,
-          functionName: "totalIssuances",
-          args: [],
-        },
-      ],
-    })) as { result: unknown; status: string }[];
+  const [known, count, firstIssued, templateCount, lastIssued, total] = await Promise.all([
+    client.readContract({ address: CONTRACT_ADDRESS, abi: CREDENTIAL_SBT_ABI, functionName: 'isIssuer', args: [issuer] }),
+    client.readContract({ address: CONTRACT_ADDRESS, abi: CREDENTIAL_SBT_ABI, functionName: 'issuerCredentialCount', args: [issuer] }),
+    client.readContract({ address: CONTRACT_ADDRESS, abi: CREDENTIAL_SBT_ABI, functionName: 'issuerFirstIssuedAt', args: [issuer] }),
+    client.readContract({ address: CONTRACT_ADDRESS, abi: CREDENTIAL_SBT_ABI, functionName: 'issuerTemplateCount', args: [issuer] }),
+    client.readContract({ address: CONTRACT_ADDRESS, abi: CREDENTIAL_SBT_ABI, functionName: 'issuerLastIssuedAt', args: [issuer] }),
+    client.readContract({ address: CONTRACT_ADDRESS, abi: CREDENTIAL_SBT_ABI, functionName: 'totalIssuances', args: [] })
+  ]);
 
-  const issuerCredentialCount = Number(count.result ?? 0);
-  const first = Number(firstIssued.result ?? 0);
-  const last = Number(lastIssued.result ?? 0);
+  const issuerCredentialCount = Number(count ?? 0);
+  const first = Number(firstIssued ?? 0);
+  const last = Number(lastIssued ?? 0);
   const now = Math.floor(Date.now() / 1000);
   const ageSeconds = first > 0 ? now - first : 0;
   const lastAgeSeconds = last > 0 ? now - last : 0;
 
   return {
-    issuerKnown: Boolean(known.result),
+    issuerKnown: Boolean(known),
     issuerCredentialCount,
     issuerAgeHours: ageSeconds / 3600,
-    issuerTemplateCount: Number(templateCount.result ?? 0),
+    issuerTemplateCount: Number(templateCount ?? 0),
     duplicateHashCount: 0,
-    totalIssuances: Number(total.result ?? 0),
+    totalIssuances: Number(total ?? 0),
     recentIssuanceCount: lastAgeSeconds <= 3600 ? issuerCredentialCount : 0,
   };
 }

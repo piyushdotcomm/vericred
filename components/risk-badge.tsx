@@ -34,6 +34,14 @@ export function RiskBadge({ report }: { report: RiskReport }) {
           {">"} NO_SUSPICIOUS_PATTERNS_DETECTED
         </p>
       )}
+
+      {(report as any).oracleSignature && (
+        <div className="mt-4 pt-4 border-t border-border/50">
+           <p className="font-mono text-[10px] uppercase tracking-widest text-valid">
+             ✔ EIP-712 ORACLE ATTESTATION: {(report as any).oracleAddress?.slice(0,10)}...
+           </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -34,6 +34,7 @@ export default function StudentPage() {
   const [sharingCredId, setSharingCredId] = useState<string | null>(null);
   const [expiryHours, setExpiryHours] = useState(24);
   const [verifierAddress, setVerifierAddress] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [grantSignatures, setGrantSignatures] = useState<
@@ -107,9 +108,15 @@ export default function StudentPage() {
     if (!isConnected || !address) {
       setCredentials([]);
       setAccessLogs([]);
+      setOtpVerified(false);
       return;
     }
-    fetchVault();
+    fetch("/api/kyc/status").then(res => res.json()).then(data => {
+      if (data.verified && data.address === address.toLowerCase()) {
+        setOtpVerified(true);
+        fetchVault();
+      }
+    });
   }, [isConnected, address, fetchVault]);
 
   async function generateGrant(vc: VaultCredential) {
@@ -230,21 +237,42 @@ export default function StudentPage() {
             the OTP sent to your university-registered mobile number.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 max-w-sm">
-            <input
-              type="text"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              placeholder="Enter 6-digit OTP"
-              className="border border-border bg-background px-4 py-2 text-sm uppercase tracking-widest flex-1"
-            />
-            <button
-              onClick={() => {
-                if (otp.length >= 4) setOtpVerified(true);
-              }}
-              className="bg-ink text-background px-6 py-2 text-sm font-medium uppercase tracking-widest hover:opacity-90 whitespace-nowrap"
-            >
-              Verify OTP
-            </button>
+            <div className="flex flex-col gap-4 w-full">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter university email"
+                className="border border-border bg-background px-4 py-2 text-sm flex-1"
+              />
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter 6-digit OTP (hint: 123456)"
+                  className="border border-border bg-background px-4 py-2 text-sm uppercase tracking-widest flex-1"
+                />
+                <button
+                  onClick={async () => {
+                    const res = await fetch("/api/kyc/verify", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ address, email, otp })
+                    });
+                    if (res.ok) {
+                      setOtpVerified(true);
+                      fetchVault();
+                    } else {
+                      alert("Invalid OTP or email");
+                    }
+                  }}
+                  className="bg-ink text-background px-6 py-2 text-sm font-medium uppercase tracking-widest hover:opacity-90 whitespace-nowrap"
+                >
+                  Verify OTP
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : (

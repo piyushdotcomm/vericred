@@ -55,7 +55,7 @@ export default function HomePage() {
                 delay: 0.2,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="flex flex-wrap gap-4 mt-4"
+              className="flex flex-wrap gap-4 mt-4 relative z-10"
             >
               <Link
                 href="/verify"

@@ -4,7 +4,9 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAccount, useWalletClient } from "wagmi";
 import { CredentialCard } from "@/components/credential-card";
+import { QRCodeSVG } from "qrcode.react";
 import { RiskBadge } from "@/components/risk-badge";
+import { PrintReceipt } from "@/components/print-receipt";
 import {
   verifyOnChain,
   verifyGrantSignature,
@@ -140,7 +142,10 @@ function VerifyContent() {
 
       const verification = await verifyOnChain(parsedCred);
       setResult(verification);
-      setCredential(parsedCred);
+      setCredential({
+        ...parsedCred,
+        issuerName: verification.issuerName || parsedCred.issuerName,
+      });
 
       const tid = await getTokenIdByHash(credentialHashBytes32(parsedCred));
       if (tid !== null) {
@@ -150,14 +155,18 @@ function VerifyContent() {
       }
 
       // Real issuer-signature validation against the on-chain issuer address.
-      if (verification.valid && parsedPayload.issuerSignature) {
+      // Empty (seeded demo) signatures are "N/A", not "INVALID".
+      const sig = (parsedPayload as any).issuerSignature;
+      if (verification.valid && sig && sig !== "0x") {
         const valid = await verifyIssuerAttestation(
           parsedCred,
-          parsedPayload.cid ?? "",
-          parsedPayload.issuerSignature,
+          (parsedPayload as any).cid ?? "",
+          sig,
           verification.issuer as Address,
         );
         setIssuerSigValid(valid);
+      } else {
+        setIssuerSigValid(null);
       }
 
       // Real AI stats from the contract's issuer counters.
@@ -165,7 +174,9 @@ function VerifyContent() {
         (verification.issuer as Address) ??
           "0x0000000000000000000000000000000000000000",
       );
-      setRisk(scoreRisk(parsedCred, stats));
+      const oracleRes = await fetch("/api/oracle/risk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: parsedCred, stats }) });
+      const oracleData = await oracleRes.json();
+      setRisk({ ...oracleData.risk, oracleSignature: oracleData.signature, oracleAddress: oracleData.oracleAddress });
 
       if (grant) {
         fetch("/api/access-logs", {
@@ -204,7 +215,8 @@ function VerifyContent() {
     ["none", "issued", "presented", "accepted"][status] ?? "unknown";
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-24">
+    <>
+    <main className="mx-auto max-w-3xl px-6 py-24 print:hidden">
       <header className="mb-12 flex justify-between items-start">
         <div>
           <a
@@ -354,6 +366,8 @@ function VerifyContent() {
         {risk && <RiskBadge report={risk} />}
       </div>
     </main>
+    {result && credential && <PrintReceipt credential={credential} result={result} risk={risk} issuerSigValid={issuerSigValid} />}
+    </>
   );
 }
 
