@@ -151,4 +151,92 @@ describe("scoreRisk", () => {
       true,
     );
   });
+
+  it("returns score 0 and no reasons for an authentic verified credential", () => {
+    const report = scoreRisk(
+      baseCredential,
+      {
+        issuerCredentialCount: 10,
+        issuerAgeHours: 5000,
+        issuerTemplateCount: 2,
+        duplicateHashCount: 0,
+        totalIssuances: 10,
+        issuerKnown: false, // Even if stats has issuerKnown false, verification proves authenticity
+        recentIssuanceCount: 0,
+      },
+      {
+        valid: true,
+        revoked: false,
+        issuer: "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        issuerName: "University A",
+      },
+      true,
+    );
+    expect(report.score).toBe(0);
+    expect(report.reasons).toHaveLength(0);
+  });
+
+  it("flags a tampered document with critical score 100 on cryptographic mismatch", () => {
+    const report = scoreRisk(
+      baseCredential,
+      {
+        issuerCredentialCount: 10,
+        issuerAgeHours: 5000,
+        issuerTemplateCount: 2,
+        duplicateHashCount: 0,
+        totalIssuances: 10,
+        issuerKnown: true,
+        recentIssuanceCount: 0,
+      },
+      {
+        valid: false,
+        revoked: false,
+      },
+    );
+    expect(report.score).toBe(100);
+    expect(report.reasons.some((r) => r.includes("Cryptographic hash mismatch"))).toBe(true);
+  });
+
+  it("flags a revoked credential with score >= 90", () => {
+    const report = scoreRisk(
+      baseCredential,
+      {
+        issuerCredentialCount: 10,
+        issuerAgeHours: 5000,
+        issuerTemplateCount: 2,
+        duplicateHashCount: 0,
+        totalIssuances: 10,
+        issuerKnown: true,
+        recentIssuanceCount: 0,
+      },
+      {
+        valid: true,
+        revoked: true,
+      },
+    );
+    expect(report.score).toBeGreaterThanOrEqual(90);
+    expect(report.reasons.some((r) => r.includes("REVOKED"))).toBe(true);
+  });
+
+  it("flags an invalid issuer signature with score >= 85", () => {
+    const report = scoreRisk(
+      baseCredential,
+      {
+        issuerCredentialCount: 10,
+        issuerAgeHours: 5000,
+        issuerTemplateCount: 2,
+        duplicateHashCount: 0,
+        totalIssuances: 10,
+        issuerKnown: true,
+        recentIssuanceCount: 0,
+      },
+      {
+        valid: true,
+        revoked: false,
+      },
+      false, // invalid signature
+    );
+    expect(report.score).toBeGreaterThanOrEqual(85);
+    expect(report.reasons.some((r) => r.includes("attestation signature is invalid"))).toBe(true);
+  });
 });

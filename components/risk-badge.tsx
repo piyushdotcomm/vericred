@@ -23,27 +23,27 @@ export function RiskBadge({ report }: { report: RiskReport }) {
       <div className="flex items-center justify-between border-b border-border/10 pb-4 mb-4">
         <div className="flex items-center gap-2">
           {isHighRisk ? <AlertTriangle className={`w-5 h-5 ${toneClass}`} /> : <ShieldCheck className={`w-5 h-5 ${toneClass}`} />}
-          <p className="font-mono text-xs uppercase tracking-widest text-ink">
-            AI_RISK_EVALUATION
+          <p className="font-mono text-xs uppercase tracking-widest text-ink font-semibold">
+            {isHighRisk ? "AI_RISK_EVALUATION: TAMPER_ALERT" : "AI_RISK_EVALUATION"}
           </p>
         </div>
-        <span className={`font-mono text-2xl font-medium ${toneClass}`}>
+        <span className={`font-mono text-2xl font-bold ${toneClass}`}>
           {report.score}
-          <span className="text-sm opacity-50">/100</span>
+          <span className="text-sm opacity-50 font-normal">/100</span>
         </span>
       </div>
 
       {report.reasons.length > 0 ? (
         <ul className="space-y-2">
           {report.reasons.map((reason) => (
-            <li key={reason} className="font-mono text-xs text-ink/80 flex items-start gap-2">
-              <span className="text-ink/40 mt-0.5">{">"}</span> {reason}
+            <li key={reason} className="font-mono text-xs text-ink flex items-start gap-2">
+              <span className={`${toneClass} font-bold mt-0.5`}>{">"}</span> {reason}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="font-mono text-xs text-ink/60 flex items-center gap-2">
-          <span className="text-ink/40">{">"}</span> NO_SUSPICIOUS_PATTERNS_DETECTED
+        <p className="font-mono text-xs text-valid flex items-center gap-2">
+          <span className="font-bold">✔</span> NO_SUSPICIOUS_PATTERNS_DETECTED (AUTHENTIC & VERIFIED)
         </p>
       )}
 

@@ -48,6 +48,71 @@ interface GrantPayload {
   signature: Hex;
 }
 
+function parseCredentialInput(raw: string): any {
+  if (!raw || !raw.trim()) {
+    throw new Error("Input is empty. Please paste a credential payload or verification link.");
+  }
+  const trimmed = raw.trim();
+
+  // 1. Direct JSON check
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {}
+  }
+
+  // 2. Query parameter in link or string: (?c=... or &c=... or c=...)
+  let base64Param: string | null = null;
+  const match = trimmed.match(/[?&]c=([^&#\s]+)/);
+  if (match && match[1]) {
+    base64Param = match[1];
+  }
+
+  if (!base64Param && trimmed.startsWith("c=")) {
+    base64Param = trimmed.slice(2);
+  }
+
+  // 3. If looks like a URL
+  if (!base64Param && (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/") || trimmed.startsWith("localhost"))) {
+    try {
+      const fullUrl = trimmed.startsWith("http") ? trimmed : `http://localhost:3001${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+      const parsedUrl = new URL(fullUrl);
+      const c = parsedUrl.searchParams.get("c");
+      if (c) base64Param = c;
+    } catch {}
+  }
+
+  // 4. Decode base64 if extracted
+  if (base64Param) {
+    try {
+      const unescaped = decodeURIComponent(base64Param);
+      try {
+        return JSON.parse(atob(unescaped));
+      } catch {
+        const normalized = unescaped.replace(/-/g, "+").replace(/_/g, "/");
+        return JSON.parse(atob(normalized));
+      }
+    } catch {
+      throw new Error("Failed to decode verification link. The link may be incomplete or invalid.");
+    }
+  }
+
+  // 5. Direct Base64 string
+  if (/^[A-Za-z0-9+/=_-]{30,}$/.test(trimmed)) {
+    try {
+      const normalized = trimmed.replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(normalized));
+    } catch {}
+  }
+
+  // 6. Fallback standard JSON.parse
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    throw new Error("Invalid format. Please paste valid credential JSON or a verification link (e.g. https://.../verify?c=...).");
+  }
+}
+
 function VerifyContent() {
   const searchParams = useSearchParams();
   const { isConnected, address } = useAccount();
@@ -87,26 +152,12 @@ function VerifyContent() {
 
         if (code) {
           try {
-            const url = new URL(code.data);
-            const cParam = url.searchParams.get("c");
-            if (cParam) {
-              const decoded = atob(cParam);
-              setInput(decoded);
-              runVerification(decoded);
-              toast("QR Code scanned successfully!", "success");
-            } else {
-              toast("QR code does not contain a valid Vericred payload.", "error");
-            }
-          } catch (err) {
-            // If it's not a URL, it might just be the raw JSON
-            try {
-              const decoded = atob(code.data);
-              setInput(decoded);
-              runVerification(decoded);
-            } catch {
-              setInput(code.data);
-              runVerification(code.data);
-            }
+            const parsed = parseCredentialInput(code.data);
+            setInput(JSON.stringify(parsed, null, 2));
+            runVerification(JSON.stringify(parsed));
+            toast("QR Code scanned successfully!", "success");
+          } catch (err: any) {
+            toast(err.message || "No valid VeriCred payload in QR code.", "error");
           }
         } else {
           toast("No QR code found in the image. Please try a clearer screenshot.", "error");
@@ -147,26 +198,34 @@ function VerifyContent() {
     try {
       let parsedPayload: any;
       try {
-        parsedPayload = JSON.parse(raw);
-      } catch {
-        throw new Error("Invalid format. Please paste valid credential JSON.");
+        parsedPayload = parseCredentialInput(raw);
+      } catch (err: any) {
+        throw new Error(err.message || "Invalid format. Please paste valid credential JSON or a verification link.");
       }
 
       let parsedCred: Credential;
       let grant: GrantPayload | undefined;
 
-      if (parsedPayload.grant && parsedPayload.credential) {
-        parsedCred = parsedPayload.credential;
+      if (parsedPayload.grant && (parsedPayload.credential || parsedPayload.id)) {
+        parsedCred = (parsedPayload.credential || parsedPayload) as Credential;
         grant = parsedPayload.grant as GrantPayload;
 
         if (Math.floor(Date.now() / 1000) > grant.expiresAt) {
           throw new Error("ACCESS DENIED: This credential grant has expired.");
         }
 
-        const revokeRes = await fetch(`/api/revoke-grant?signature=${encodeURIComponent(grant.signature)}`);
-        const revokeData = await revokeRes.json();
-        if (revokeData.isRevoked) {
-          throw new Error("ACCESS DENIED: The student has revoked this access link.");
+        if (grant.signature && grant.signature !== "0x") {
+          try {
+            const revokeRes = await fetch(`/api/revoke-grant?signature=${encodeURIComponent(grant.signature)}`);
+            if (revokeRes.ok) {
+              const revokeData = await revokeRes.json();
+              if (revokeData.isRevoked) {
+                throw new Error("ACCESS DENIED: The student has revoked this access link.");
+              }
+            }
+          } catch (e: any) {
+            if (e.message?.includes("ACCESS DENIED")) throw e;
+          }
         }
 
         const isValidSignature = await verifyGrantSignature(grant, parsedCred.studentAddress as Address);
@@ -174,12 +233,25 @@ function VerifyContent() {
           throw new Error("ACCESS DENIED: Invalid or tampered grant signature.");
         }
 
-        const isBearer = grant.verifier === "0x0000000000000000000000000000000000000000";
-        if (!isBearer && (!isConnected || address !== grant.verifier)) {
-          throw new Error("ACCESS DENIED: This grant is cryptographically bound to a specific verifier wallet.");
+        const isBearer =
+          !grant.verifier ||
+          grant.verifier.toLowerCase() === "0x0000000000000000000000000000000000000000" ||
+          grant.verifier.toLowerCase() === "0x0";
+
+        if (!isBearer) {
+          if (!isConnected || !address) {
+            throw new Error(
+              `WALLET REQUIRED: This credential link is cryptographically bound to verifier wallet (${grant.verifier.slice(0, 6)}...${grant.verifier.slice(-4)}). Please connect your wallet to verify.`,
+            );
+          }
+          if (address.toLowerCase() !== grant.verifier.toLowerCase()) {
+            throw new Error(
+              `ACCESS DENIED: Wallet mismatch. Connected wallet (${address.slice(0, 6)}...${address.slice(-4)}) is not the authorized verifier (${grant.verifier.slice(0, 6)}...${grant.verifier.slice(-4)}).`,
+            );
+          }
         }
       } else {
-        parsedCred = parsedPayload as Credential;
+        parsedCred = (parsedPayload.credential || parsedPayload) as Credential;
       }
 
       const verification = await verifyOnChain(parsedCred);
@@ -189,25 +261,82 @@ function VerifyContent() {
         issuerName: verification.issuerName || parsedCred.issuerName,
       });
 
-      const tid = await getTokenIdByHash(credentialHashBytes32(parsedCred));
-      if (tid !== null) {
-        setTokenId(Number(tid));
-        const onchain = await getCredentialOnChain(tid);
-        setMigrationStatus(onchain.migrationStatus);
+      try {
+        const tid = await getTokenIdByHash(credentialHashBytes32(parsedCred));
+        if (tid !== null) {
+          setTokenId(Number(tid));
+          const onchain = await getCredentialOnChain(tid);
+          setMigrationStatus(onchain.migrationStatus);
+        }
+      } catch (err) {
+        console.warn("Could not retrieve token id by hash:", err);
       }
 
       const sig = (parsedPayload as any).issuerSignature;
+      let computedIssuerSigValid: boolean | null = null;
       if (verification.valid && sig && sig !== "0x") {
-        const valid = await verifyIssuerAttestation(parsedCred, (parsedPayload as any).cid ?? "", sig, verification.issuer as Address);
-        setIssuerSigValid(valid);
+        try {
+          computedIssuerSigValid = await verifyIssuerAttestation(
+            parsedCred,
+            (parsedPayload as any).cid ?? "",
+            sig,
+            verification.issuer as Address,
+          );
+          setIssuerSigValid(computedIssuerSigValid);
+        } catch {
+          setIssuerSigValid(false);
+          computedIssuerSigValid = false;
+        }
       } else {
         setIssuerSigValid(null);
       }
 
-      const stats = await fetchRegistryStats((verification.issuer as Address) ?? "0x0000000000000000000000000000000000000000");
-      const oracleRes = await fetch("/api/oracle/risk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: parsedCred, stats }) });
-      const oracleData = await oracleRes.json();
-      setRisk({ ...oracleData.risk, oracleSignature: oracleData.signature, oracleAddress: oracleData.oracleAddress });
+      try {
+        const stats = await fetchRegistryStats(
+          (verification.issuer as Address) ??
+            "0x0000000000000000000000000000000000000000",
+        );
+        const oracleRes = await fetch("/api/oracle/risk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            credential: parsedCred,
+            stats,
+            verification,
+            issuerSigValid: computedIssuerSigValid,
+          }),
+        });
+        if (oracleRes.ok) {
+          const oracleData = await oracleRes.json();
+          setRisk({
+            ...oracleData.risk,
+            oracleSignature: oracleData.signature,
+            oracleAddress: oracleData.oracleAddress,
+          });
+        } else {
+          throw new Error("Oracle API response not ok");
+        }
+      } catch (riskErr) {
+        console.warn(
+          "Oracle risk endpoint error, using local AI engine:",
+          riskErr,
+        );
+        const fallbackRisk = scoreRisk(
+          parsedCred,
+          {
+            issuerKnown: verification.valid,
+            issuerCredentialCount: 1,
+            issuerAgeHours: 24,
+            issuerTemplateCount: 1,
+            duplicateHashCount: 0,
+            totalIssuances: 1,
+            recentIssuanceCount: 0,
+          },
+          verification,
+          computedIssuerSigValid,
+        );
+        setRisk(fallbackRisk);
+      }
 
       if (grant) {
         fetch("/api/access-logs", {
@@ -233,17 +362,26 @@ function VerifyContent() {
     const c = searchParams.get("c");
     if (c) {
       try {
-        const decoded = atob(c);
-        setInput(decoded);
-        runVerification(decoded);
+        let decodedStr: string;
+        try {
+          decodedStr = atob(decodeURIComponent(c));
+        } catch {
+          const normalized = decodeURIComponent(c)
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
+          decodedStr = atob(normalized);
+        }
+        setInput(decodedStr);
+        runVerification(decodedStr);
       } catch {
-        setError("Failed to decode credential from QR code link.");
+        setError("Failed to decode credential from link.");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, isConnected, address]);
 
-  const migrationLabel = (status: number) => ["None", "Issued", "Presented", "Accepted"][status] ?? "Unknown";
+  const migrationLabel = (status: number) =>
+    ["None", "Issued", "Presented", "Accepted"][status] ?? "Unknown";
 
   return (
     <>
@@ -260,7 +398,7 @@ function VerifyContent() {
 
         <AnimatePresence mode="wait">
           {!result ? (
-            <motion.div 
+            <motion.div
               key="input"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -272,21 +410,32 @@ function VerifyContent() {
                 Verify Document
               </h1>
               <p className="text-inkSecondary max-w-xl mx-auto mb-12">
-                Paste the credential JSON payload below to run a mathematically verifiable on-chain check against the VeriCred network. No accounts required.
+                Paste the credential JSON payload or verification link below to run a mathematically verifiable on-chain check against the VeriCred network.
               </p>
 
               <div className="w-full bg-surface border border-border rounded-soft p-6 shadow-sm text-left relative group">
                 <label htmlFor="credential-json" className="eyebrow block mb-4">
-                  Credential Payload
+                  Credential Payload or Verification Link
                 </label>
                 <textarea
                   id="credential-json"
                   rows={8}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder='{"id":"cred-1","issuerName":"University A",...}'
+                  placeholder='Paste credential JSON or verification link (e.g. http://localhost:3001/verify?c=...)'
                   className="w-full border border-border bg-background rounded-sm p-4 font-mono text-sm leading-relaxed text-ink focus:border-ink/50 focus:outline-none transition-colors resize-none placeholder:text-border"
                 />
+
+                {error && (
+                  <div className="mt-4 p-4 rounded-soft border border-tampered/30 bg-tamperedBg text-tampered text-xs font-mono flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <span className="leading-relaxed">{error}</span>
+                    {error.includes("WALLET REQUIRED") && !isConnected && (
+                      <div className="shrink-0">
+                        <WalletConnect />
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="mt-6 flex flex-col sm:flex-row gap-4">
                   <Button
                     variant="primary"

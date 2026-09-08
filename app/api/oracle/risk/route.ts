@@ -7,36 +7,72 @@ import { hardhat } from "viem/chains";
 const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 // Helper function to call real AI models if keys are present
-async function getAIRisk(credential: any, stats: any) {
+async function getAIRisk(
+  credential: any,
+  stats: any,
+  verification?: any,
+  issuerSigValid?: any,
+) {
+  // 1. If document failed cryptographic hash check, it is definitively tampered.
+  if (verification && !verification.valid) {
+    return {
+      score: 100,
+      reasons: [
+        "CRITICAL: Cryptographic hash mismatch. Document content has been modified or does not match the ledger.",
+      ],
+    };
+  }
+
   if (process.env.GEMINI_API_KEY) {
     try {
       const prompt = `
-      You are an AI Oracle for a Web3 Credential Registry.
-      Analyze this credential and the issuer's on-chain stats.
-      Provide a risk score from 0 (perfectly safe) to 100 (highly suspicious).
-      Also provide 1-3 short reasons for your score.
-      
+      You are an AI Risk Oracle for VeriCred, an institutional Web3 Credential Registry.
+      Analyze this credential, cryptographic verification status, and issuer on-chain stats.
+
+      CORE RULES:
+      1. If the credential is cryptographically valid (verification.valid is true) and issuer statistics are normal, it is AUTHENTIC and SAFE. Return score: 0 and reasons: [].
+      2. ONLY flag credentials that show genuine anomalies:
+         - Tampered payload or hash mismatch (score: 100)
+         - Revoked credential (score: 90)
+         - Invalid or forged cryptographic signature (score: 85)
+         - Extreme bot/sybil mass-minting anomalies (5000+ credentials in under 1 hour)
+      3. NEVER falsely flag verified credentials with "Issuer is not on the recognized registry". If verification.valid is true, the issuer is authenticated by the ledger.
+
+      Input Data:
       Credential: ${JSON.stringify(credential)}
+      Verification: ${JSON.stringify(verification ?? { valid: true })}
+      Issuer Signature Valid: ${issuerSigValid ?? "N/A"}
       Issuer Stats: ${JSON.stringify(stats)}
-      
-      Return ONLY a raw JSON object with this exact structure:
+
+      Return ONLY a valid JSON object matching this schema:
       {
-        "score": 35,
-        "reasons": ["Issuer is not on the recognized registry."]
+        "score": <number between 0 and 100>,
+        "reasons": [<string array of specific anomalies detected, or empty array [] if clean and authentic>]
       }
       `;
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
-      });
-      const data = await res.json();
-      const text = data.candidates[0].content.parts[0].text;
-      return JSON.parse(text);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" },
+          }),
+          signal: AbortSignal.timeout(4000),
+        },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (typeof parsed.score === "number" && Array.isArray(parsed.reasons)) {
+            return parsed;
+          }
+        }
+      }
     } catch (e) {
       console.error("Gemini AI failed, falling back to heuristics:", e);
     }
@@ -48,7 +84,7 @@ async function getAIRisk(credential: any, stats: any) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
           model: "gpt-3.5-turbo",
@@ -56,29 +92,39 @@ async function getAIRisk(credential: any, stats: any) {
           messages: [
             {
               role: "system",
-              content: "You are an AI Oracle for a Web3 Credential Registry. Analyze the credential and the issuer's on-chain stats. Return a JSON object with 'score' (0-100) and 'reasons' (array of strings)."
+              content:
+                "You are an AI Risk Oracle for a Web3 Credential Registry. If the credential is cryptographically valid and stats are normal, return score: 0 and reasons: []. Only flag genuine anomalies like tampering, revocation, or mass-minting bot attacks. Return JSON with 'score' (0-100) and 'reasons' (array of strings).",
             },
             {
               role: "user",
-              content: `Credential: ${JSON.stringify(credential)}\nStats: ${JSON.stringify(stats)}`
-            }
-          ]
-        })
+              content: `Credential: ${JSON.stringify(credential)}\nVerification: ${JSON.stringify(verification ?? { valid: true })}\nIssuer Signature Valid: ${issuerSigValid ?? "N/A"}\nStats: ${JSON.stringify(stats)}`,
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(4000),
       });
-      const data = await res.json();
-      return JSON.parse(data.choices[0].message.content);
+      if (res.ok) {
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          if (typeof parsed.score === "number" && Array.isArray(parsed.reasons)) {
+            return parsed;
+          }
+        }
+      }
     } catch (e) {
       console.error("OpenAI failed, falling back to heuristics:", e);
     }
   }
 
-  // Fallback to static rules
-  return scoreRisk(credential, stats);
+  // Fallback to deterministic rules
+  return scoreRisk(credential, stats, verification, issuerSigValid);
 }
 
 export async function POST(req: Request) {
-  const { credential, stats } = await req.json();
-  const risk = await getAIRisk(credential, stats);
+  const { credential, stats, verification, issuerSigValid } = await req.json();
+  const risk = await getAIRisk(credential, stats, verification, issuerSigValid);
 
   const account = privateKeyToAccount(ORACLE_PRIVATE_KEY as `0x${string}`);
   const client = createWalletClient({ account, chain: hardhat, transport: http() });
@@ -97,7 +143,7 @@ export async function POST(req: Request) {
     ],
   };
 
-  const signature = await client.signTypedData({
+  const signature = await account.signTypedData({
     domain,
     types,
     primaryType: "RiskReport",
