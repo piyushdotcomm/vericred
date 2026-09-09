@@ -240,3 +240,44 @@ describe("scoreRisk", () => {
     expect(report.reasons.some((r) => r.includes("attestation signature is invalid"))).toBe(true);
   });
 });
+
+describe("grant & attestation signature validation (regression)", () => {
+  it("rejects a placeholder '0xsig' grant signature instead of treating it as valid", async () => {
+    const { verifyGrantSignature } = await import("../lib/contract-client");
+    const valid = await verifyGrantSignature(
+      {
+        verifier: "0x0000000000000000000000000000000000000000",
+        credentialId: "cred-1",
+        expiresAt: Math.floor(Date.now() / 1000) + 100,
+        signature: "0xsig" as `0x${string}`,
+      },
+      "0xabc",
+    );
+    expect(valid).toBe(false);
+  });
+
+  it("rejects a placeholder '0xsig' issuer attestation signature", async () => {
+    const { verifyIssuerAttestation } = await import("../lib/contract-client");
+    const valid = await verifyIssuerAttestation(
+      baseCredential,
+      "ipfs://abc",
+      "0xsig" as `0x${string}`,
+      "0xabc",
+    );
+    expect(valid).toBe(false);
+  });
+
+  it("rejects a malformed (not 65-byte) signature instead of running verification", async () => {
+    const { verifyGrantSignature } = await import("../lib/contract-client");
+    const valid = await verifyGrantSignature(
+      {
+        verifier: "0x0000000000000000000000000000000000000000",
+        credentialId: "cred-1",
+        expiresAt: Math.floor(Date.now() / 1000) + 100,
+        signature: "0xdeadbeef" as `0x${string}`,
+      },
+      "0xabc",
+    );
+    expect(valid).toBe(false);
+  });
+});

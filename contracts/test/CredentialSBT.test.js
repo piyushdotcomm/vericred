@@ -117,6 +117,8 @@ describe("CredentialSBT", function () {
 
   it("emits MigrationAccepted after a present -> accept handshake", async function () {
     const { contract, issuer, student, other } = await deploy();
+    // The destination university must be a registered issuer to accept.
+    await contract.grantRole(await contract.ISSUER_ROLE(), other.address);
     await contract.issueCredential(
       student.address,
       MIGRATION_HASH,
@@ -124,10 +126,12 @@ describe("CredentialSBT", function () {
       "ipfs://mig",
     );
     await contract.connect(student).presentMigration(0, other.address);
-    const tx = await contract.acceptMigration(0, other.address);
+    const tx = await contract
+      .connect(other)
+      .acceptMigration(0, other.address);
     await expect(tx)
       .to.emit(contract, "MigrationAccepted")
-      .withArgs(0, issuer.address, other.address);
+      .withArgs(0, other.address, other.address);
   });
 
   it("rejects accepting a non-presented migration", async function () {
@@ -211,5 +215,62 @@ describe("CredentialSBT", function () {
         ["ipfs://a", "ipfs://b"],
       ),
     ).to.be.revertedWith("Length mismatch: docHashes");
+  });
+
+  describe("cross-issuer authorization (regression)", function () {
+    it("prevents a different issuer from revoking another university's credential", async function () {
+      const { contract, issuer, student, other } = await deploy();
+      await contract.issueCredential(
+        student.address,
+        DOC_HASH,
+        "degree",
+        "ipfs://abc",
+      );
+
+      // `other` is a legitimate ISSUER_ROLE holder (a second university).
+      await contract.grantRole(
+        await contract.ISSUER_ROLE(),
+        other.address,
+      );
+
+      await expect(
+        contract.connect(other).revokeCredential(0),
+      ).to.be.revertedWith("Not the issuing authority");
+
+      // The original issuer can still revoke their own credential.
+      await contract.revokeCredential(0);
+      const result = await contract.verifyCredential(DOC_HASH);
+      expect(result.revoked).to.equal(true);
+    });
+
+    it("prevents a non-designated issuer from accepting a migration", async function () {
+      const { contract, issuer, student, other } = await deploy();
+      await contract.issueCredential(
+        student.address,
+        MIGRATION_HASH,
+        "migration",
+        "ipfs://mig",
+      );
+
+      // `other` is a registered university, but the student presented the
+      // migration to `issuer`.
+      await contract.grantRole(
+        await contract.ISSUER_ROLE(),
+        other.address,
+      );
+      await contract
+        .connect(student)
+        .presentMigration(0, issuer.address);
+
+      await expect(
+        contract.connect(other).acceptMigration(0, other.address),
+      ).to.be.revertedWith("Not the designated destination");
+
+      // The designated destination accepts, and the binding is preserved.
+      await contract.connect(issuer).acceptMigration(0, issuer.address);
+      const c = await contract.getCredential(0);
+      expect(c.migrationStatus).to.equal(3); // Accepted
+      expect(c.presentedTo).to.equal(issuer.address);
+    });
   });
 });
