@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import { canonicalJson, credentialHash } from "../lib/hash";
 import { verifyCredential } from "../lib/verify";
 import { scoreRisk } from "../lib/ai-risk";
+import {
+  verifyGrantSignature,
+  verifyIssuerAttestation,
+} from "../lib/contract-client";
 import type { Credential, Grant } from "../lib/types";
 
 const baseCredential: Credential = {
@@ -242,8 +246,9 @@ describe("scoreRisk", () => {
 });
 
 describe("grant & attestation signature validation (regression)", () => {
+  const mockSigner = "0x1111111111111111111111111111111111111111" as const;
+
   it("rejects a placeholder '0xsig' grant signature instead of treating it as valid", async () => {
-    const { verifyGrantSignature } = await import("../lib/contract-client");
     const valid = await verifyGrantSignature(
       {
         verifier: "0x0000000000000000000000000000000000000000",
@@ -251,24 +256,64 @@ describe("grant & attestation signature validation (regression)", () => {
         expiresAt: Math.floor(Date.now() / 1000) + 100,
         signature: "0xsig" as `0x${string}`,
       },
-      "0xabc",
+      mockSigner,
     );
     expect(valid).toBe(false);
   });
 
+  it("rejects an empty or '0x' grant signature", async () => {
+    const validMissing = await verifyGrantSignature(
+      {
+        verifier: "0x0000000000000000000000000000000000000000",
+        credentialId: "cred-1",
+        expiresAt: Math.floor(Date.now() / 1000) + 100,
+        signature: "" as `0x${string}`,
+      },
+      mockSigner,
+    );
+    expect(validMissing).toBe(false);
+
+    const valid0x = await verifyGrantSignature(
+      {
+        verifier: "0x0000000000000000000000000000000000000000",
+        credentialId: "cred-1",
+        expiresAt: Math.floor(Date.now() / 1000) + 100,
+        signature: "0x" as `0x${string}`,
+      },
+      mockSigner,
+    );
+    expect(valid0x).toBe(false);
+  });
+
   it("rejects a placeholder '0xsig' issuer attestation signature", async () => {
-    const { verifyIssuerAttestation } = await import("../lib/contract-client");
     const valid = await verifyIssuerAttestation(
       baseCredential,
       "ipfs://abc",
       "0xsig" as `0x${string}`,
-      "0xabc",
+      mockSigner,
     );
     expect(valid).toBe(false);
   });
 
+  it("rejects an empty or '0x' issuer attestation signature", async () => {
+    const validMissing = await verifyIssuerAttestation(
+      baseCredential,
+      "ipfs://abc",
+      "" as `0x${string}`,
+      mockSigner,
+    );
+    expect(validMissing).toBe(false);
+
+    const valid0x = await verifyIssuerAttestation(
+      baseCredential,
+      "ipfs://abc",
+      "0x" as `0x${string}`,
+      mockSigner,
+    );
+    expect(valid0x).toBe(false);
+  });
+
   it("rejects a malformed (not 65-byte) signature instead of running verification", async () => {
-    const { verifyGrantSignature } = await import("../lib/contract-client");
     const valid = await verifyGrantSignature(
       {
         verifier: "0x0000000000000000000000000000000000000000",
@@ -276,7 +321,7 @@ describe("grant & attestation signature validation (regression)", () => {
         expiresAt: Math.floor(Date.now() / 1000) + 100,
         signature: "0xdeadbeef" as `0x${string}`,
       },
-      "0xabc",
+      mockSigner,
     );
     expect(valid).toBe(false);
   });

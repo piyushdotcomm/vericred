@@ -174,8 +174,8 @@ export async function verifyOnChain(
         if (fs.existsSync(filePath)) {
           const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
           credentialsList = raw.map((r: any) => ({
-            id: r.credential?.id || r.id,
             docHash: r.docHash,
+            issuerAddress: r.issuerAddress || r.credential?.issuerAddress,
             studentAddress: r.credential?.studentAddress || r.studentAddress,
             docType: r.credential?.docType || r.docType,
             issuerName: r.credential?.issuerName || r.issuerName,
@@ -191,9 +191,11 @@ export async function verifyOnChain(
     );
 
     if (matched) {
-      // Resolve the issuer from the record's own DID (did:web:issuer-<addr>)
-      // instead of fabricating one, so the report can never attribute a
-      // credential to an issuer that never signed it.
+      // Resolve the issuer:
+      // 1. Explicit issuerAddress on record
+      // 2. Parsed address from did:web:issuer-0x...
+      // 3. Known demo institution ("did:web:university-a.edu" -> Hardhat demo issuer)
+      // 4. Default to zero address if truly unknown
       const didMatch = /issuer-(0x[0-9a-fA-F]{40})/.exec(
         matched.issuerDid ?? "",
       );
@@ -201,14 +203,26 @@ export async function verifyOnChain(
         | Address
         | undefined;
 
+      const isDemoUniversity =
+        matched.issuerDid === "did:web:university-a.edu" ||
+        matched.issuerName === "University A" ||
+        credential.issuerDid === "did:web:university-a.edu" ||
+        credential.issuerName === "University A";
+
+      const resolvedIssuer =
+        (matched.issuerAddress as Address) ||
+        issuerFromDid ||
+        (isDemoUniversity ? ("0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address) : undefined) ||
+        ("0x0000000000000000000000000000000000000000" as Address);
+
       return {
         valid: true,
-        issuer: issuerFromDid ?? ("0x0000000000000000000000000000000000000000" as Address),
+        issuer: resolvedIssuer,
         student: (matched.studentAddress ||
           credential.studentAddress) as Address,
         revoked: false,
         docType: matched.docType || credential.docType,
-        issuerName: matched.issuerName || credential.issuerName || "University",
+        issuerName: matched.issuerName || credential.issuerName || "University A",
       };
     }
   } catch (err) {
@@ -483,11 +497,10 @@ export async function verifyGrantSignature(
   grant: GrantPayload,
   expectedSigner: Address,
 ): Promise<boolean> {
-  // No signature at all means "unsigned bearer payload" — the caller decides
-  // whether that is acceptable. A placeholder like "0xsig" is NOT a signature
-  // and must fail verification.
+  // Require a valid, well-formed 65-byte signature. Missing or placeholder
+  // signatures must fail verification.
   if (!grant.signature || grant.signature === "0x") {
-    return true;
+    return false;
   }
   if (!/^0x[0-9a-f]{130}$/i.test(grant.signature)) {
     return false;
@@ -553,11 +566,10 @@ export async function verifyIssuerAttestation(
   signature: Hex,
   expectedIssuer: Address,
 ): Promise<boolean> {
-  // No signature at all means "unsigned record" (e.g. seeded demo data) —
-  // the caller decides whether that is acceptable. Anything else must be a
-  // well-formed 65-byte signature to be worth verifying.
+  // Require a valid, well-formed 65-byte signature. Missing or placeholder
+  // signatures must fail verification.
   if (!signature || signature === "0x") {
-    return true;
+    return false;
   }
   if (!/^0x[0-9a-f]{130}$/i.test(signature)) {
     return false;

@@ -6,7 +6,8 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "allowJs": true
   },
-  "include": ["./scripts", "./test"]
+  "include": ["./scripts", "./test", "./hardhat.config.js"]
 }

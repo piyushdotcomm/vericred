@@ -231,6 +231,7 @@ contract CredentialSBT is ERC721, AccessControl {
             c.presentedTo == msg.sender,
             "Not the designated destination"
         );
+        require(destination == msg.sender, "Destination must match caller");
 
         c.migrationStatus = MigrationStatus.Accepted;
         c.presentedTo = destination;

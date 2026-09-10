@@ -48,6 +48,13 @@ interface GrantPayload {
   signature: Hex;
 }
 
+function decodeB64ToUtf8(b64: string): string {
+  const normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(normalized);
+  const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 function parseCredentialInput(raw: string): any {
   if (!raw || !raw.trim()) {
     throw new Error("Input is empty. Please paste a credential payload or verification link.");
@@ -86,12 +93,6 @@ function parseCredentialInput(raw: string): any {
   if (base64Param) {
     try {
       const unescaped = decodeURIComponent(base64Param);
-      const decodeB64ToUtf8 = (b64: string) => {
-        const normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
-        const bin = atob(normalized);
-        const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
-        return new TextDecoder().decode(bytes);
-      };
       try {
         return JSON.parse(decodeB64ToUtf8(unescaped));
       } catch {
@@ -105,10 +106,12 @@ function parseCredentialInput(raw: string): any {
   // 5. Direct Base64 string
   if (/^[A-Za-z0-9+/=_-]{30,}$/.test(trimmed)) {
     try {
-      const normalized = trimmed.replace(/-/g, "+").replace(/_/g, "/");
-      const bin = atob(normalized);
-      const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
-      return JSON.parse(new TextDecoder().decode(bytes));
+      try {
+        return JSON.parse(decodeB64ToUtf8(trimmed));
+      } catch {
+        const normalized = trimmed.replace(/-/g, "+").replace(/_/g, "/");
+        return JSON.parse(atob(normalized));
+      }
     } catch {}
   }
 
@@ -369,12 +372,6 @@ function VerifyContent() {
     const c = searchParams.get("c");
     if (c) {
       try {
-        const decodeB64ToUtf8 = (b64: string) => {
-          const normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
-          const bin = atob(normalized);
-          const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
-          return new TextDecoder().decode(bytes);
-        };
         let decodedStr: string;
         try {
           decodedStr = decodeB64ToUtf8(decodeURIComponent(c));

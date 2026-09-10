@@ -272,5 +272,22 @@ describe("CredentialSBT", function () {
       expect(c.migrationStatus).to.equal(3); // Accepted
       expect(c.presentedTo).to.equal(issuer.address);
     });
+
+    it("prevents an issuer from accepting with a mismatched destination parameter", async function () {
+      const { contract, issuer, student, other } = await deploy();
+      await contract.issueCredential(
+        student.address,
+        MIGRATION_HASH,
+        "migration",
+        "ipfs://mig",
+      );
+
+      await contract.connect(student).presentMigration(0, issuer.address);
+
+      // Caller is designated destination (issuer), but tries to pass other as destination
+      await expect(
+        contract.connect(issuer).acceptMigration(0, other.address),
+      ).to.be.revertedWith("Destination must match caller");
+    });
   });
 });

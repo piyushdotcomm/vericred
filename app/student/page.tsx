@@ -136,10 +136,11 @@ export default function StudentPage() {
       };
 
       const rawJson = JSON.stringify(payloadObj, null, 2);
+      const minifiedJson = JSON.stringify(payloadObj);
       // UTF-8-safe base64 (btoa alone throws on non-Latin1 characters,
       // e.g. student names outside ASCII).
       const payload = btoa(
-        Array.from(new TextEncoder().encode(rawJson), (b) =>
+        Array.from(new TextEncoder().encode(minifiedJson), (b) =>
           String.fromCharCode(b),
         ).join(""),
       );
