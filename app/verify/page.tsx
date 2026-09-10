@@ -86,11 +86,16 @@ function parseCredentialInput(raw: string): any {
   if (base64Param) {
     try {
       const unescaped = decodeURIComponent(base64Param);
+      const decodeB64ToUtf8 = (b64: string) => {
+        const normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
+        const bin = atob(normalized);
+        const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+      };
       try {
-        return JSON.parse(atob(unescaped));
+        return JSON.parse(decodeB64ToUtf8(unescaped));
       } catch {
-        const normalized = unescaped.replace(/-/g, "+").replace(/_/g, "/");
-        return JSON.parse(atob(normalized));
+        return JSON.parse(atob(unescaped));
       }
     } catch {
       throw new Error("Failed to decode verification link. The link may be incomplete or invalid.");
@@ -101,7 +106,9 @@ function parseCredentialInput(raw: string): any {
   if (/^[A-Za-z0-9+/=_-]{30,}$/.test(trimmed)) {
     try {
       const normalized = trimmed.replace(/-/g, "+").replace(/_/g, "/");
-      return JSON.parse(atob(normalized));
+      const bin = atob(normalized);
+      const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
     } catch {}
   }
 
@@ -362,14 +369,17 @@ function VerifyContent() {
     const c = searchParams.get("c");
     if (c) {
       try {
+        const decodeB64ToUtf8 = (b64: string) => {
+          const normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
+          const bin = atob(normalized);
+          const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+          return new TextDecoder().decode(bytes);
+        };
         let decodedStr: string;
         try {
-          decodedStr = atob(decodeURIComponent(c));
+          decodedStr = decodeB64ToUtf8(decodeURIComponent(c));
         } catch {
-          const normalized = decodeURIComponent(c)
-            .replace(/-/g, "+")
-            .replace(/_/g, "/");
-          decodedStr = atob(normalized);
+          decodedStr = atob(decodeURIComponent(c));
         }
         setInput(decodedStr);
         runVerification(decodedStr);

@@ -149,11 +149,10 @@ contract CredentialSBT is ERC721, AccessControl {
         _tokenByHash[docHash] = tokenId;
         _hashCount[docHash] = 1;
 
-        uint256 count = _issuerCredentialCount[msg.sender];
-        if (count == 0) {
+        _issuerCredentialCount[msg.sender] += 1;
+        if (_issuerCredentialCount[msg.sender] == 1) {
             _issuerFirstIssuedAt[msg.sender] = block.timestamp;
         }
-        _issuerCredentialCount[msg.sender] = count + 1;
         _issuerLastIssuedAt[msg.sender] = block.timestamp;
 
         // Cheap template-entropy heuristic: count identical docType values.
@@ -192,6 +191,7 @@ contract CredentialSBT is ERC721, AccessControl {
     {
         Credential storage c = _credentials[tokenId];
         require(c.issuer != address(0), "Credential does not exist");
+        require(c.issuer == msg.sender, "Not the issuing authority");
         require(!c.revoked, "Already revoked");
 
         c.revoked = true;
@@ -225,6 +225,11 @@ contract CredentialSBT is ERC721, AccessControl {
         require(
             c.migrationStatus == MigrationStatus.Presented,
             "Migration is not presented"
+        );
+        require(destination != address(0), "Invalid destination");
+        require(
+            c.presentedTo == msg.sender,
+            "Not the designated destination"
         );
 
         c.migrationStatus = MigrationStatus.Accepted;
